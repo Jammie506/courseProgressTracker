@@ -1,0 +1,60 @@
+{
+  "name": "learner-progress-tracker",
+  "version": "1.0.0",
+  "description": "Track learner progress through course modules",
+  "author": "Jamie McCarthy",
+  "main": "assets/scripts/main.js",
+  "homepage": "./",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "build-win": "electron-builder --win --publish never",
+    "build-win-portable": "electron-builder --win portable --publish never"
+  },
+  "dependencies": {
+  },
+  "devDependencies": {
+    "electron": "latest",
+    "electron-builder": "latest"
+  },
+  "build": {
+    "appId": "com.learnerprogresstracker.app",
+    "productName": "Learner Progress Tracker",
+    "directories": {
+      "buildResources": "assets"
+    },
+    "files": [
+      "assets/scripts/main.js",
+      "preload.js",
+      "index.html",
+      "renderer.js",
+      "styles.css",
+      "sample-courses.json",
+      "data/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Learner Progress Tracker"
+    }
+  }
+}

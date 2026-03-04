@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learner Progress Tracker</title>
+    <link rel="stylesheet" href="assets/style/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <h1>📚 Course Progress Tracker</h1>
+                <p class="subtitle">See your progress across all your classes</p>
+            </div>
+            <nav class="header-nav">
+                <button id="welcomeNavBtn" class="nav-btn nav-btn-active" onclick="showWelcome()">Welcome</button>
+                <button id="coursesNavBtn" class="nav-btn" onclick="showCourses()">Courses</button>
+            </nav>
+        </header>
+
+        <main>
+            <!-- Welcome Section -->
+            <section id="welcomeSection" class="welcome-section">
+                <div class="welcome-container">
+                    <div class="welcome-header">
+                        <h1>Welcome to Your Learning Journey! 🎓</h1>
+                    </div>
+                    <div class="welcome-content">
+                        <div class="welcome-card">
+                            <h2>Get Started</h2>
+                            <p>This progress tracker is designed to help you stay organized and motivated as you work through your course materials. Track your progress, monitor completed tasks, and see your achievements grow!</p>
+                        </div>
+
+                        <div class="welcome-card">
+                            <h2>How It Works</h2>
+                            <ul class="welcome-list">
+                                <li><strong>Courses:</strong> View all your available courses</li>
+                                <li><strong>Modules:</strong> Each course contains modules - break down your work into manageable chunks</li>
+                                <li><strong>Tasks:</strong> Within each module are individual tasks. Complete them one by one</li>
+                                <li><strong>Progress Tracking:</strong> Watch your progress bar fill as you complete tasks and modules</li>
+                            </ul>
+                        </div>
+
+                        <div class="welcome-card">
+                            <h2>Tips for Success</h2>
+                            <ul class="welcome-list">
+                                <li>✓ Check off tasks as you complete them</li>
+                                <li>✓ Work through modules sequentially for best results</li>
+                                <li>✓ Use the progress bar to stay motivated</li>
+                                <li>✓ Regular practice leads to better outcomes</li>
+                            </ul>
+                        </div>
+
+                        <div class="welcome-card">
+                            <h2>Need Help?</h2>
+                            <p>If you have questions about the course content, refer to the course materials provided by your instructor. This app is designed to help you track progress, not to replace the course content itself.</p>
+                        </div>
+
+                        <div class="welcome-actions">
+                            <button id="startLearningBtn" class="btn btn-primary btn-large">Start Learning</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Overall Progress Section -->
+            <section class="overall-progress-section hidden">
+                <h2>Overall Progress Towards General Learning 4M2010</h2>
+                <div class="overall-progress-container">
+                    <div class="overall-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">Total Modules</span>
+                            <span class="stat-value" id="totalCoursesCount">0</span>
+                        </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-item">
+                            <span class="stat-label">Total Activities</span>
+                            <span class="stat-value" id="totalModulesCount">0</span>
+                        </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-item">
+                            <span class="stat-label">Completed</span>
+                            <span class="stat-value" id="completedModulesCount">0</span>
+                        </div>
+                    </div>
+                    <div class="overall-progress-bar-container">
+                        <div class="progress-info">
+                            <span id="overallProgressText">0% Complete</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div id="overallProgressFill" class="progress-fill"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Course Selection/Creation Section -->
+            <section class="course-section hidden">
+                <div class="section-header">
+                    <h2>Modules</h2>
+                    <button id="addCourseBtn" class="btn btn-primary">+ New Module</button>
+                </div>
+                
+                <div id="courseList" class="course-list">
+                    <p class="empty-state">No modules yet. Create one to get started!</p>
+                </div>
+
+                <!-- Add Course Modal -->
+                <div id="addCourseModal" class="modal hidden">
+                    <div class="modal-content">
+                        <h3>Create New Module</h3>
+                        <input type="text" id="courseNameInput" placeholder="Enter module name" class="input-field">
+                        <div class="modal-buttons">
+                            <button id="createCourseBtn" class="btn btn-primary">Create</button>
+                            <button id="cancelCourseBtn" class="btn btn-secondary">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Module Management Section -->
+            <section id="moduleSection" class="module-section hidden">
+                <div class="section-header">
+                    <h2>Activities in <span id="currentCourseName"></span></h2>
+                    <button id="addModuleBtn" class="btn btn-primary">+ Add Activity</button>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="progress-container">
+                    <div class="progress-info">
+                        <span id="progressText">0% Complete</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div id="progressFill" class="progress-fill"></div>
+                    </div>
+                </div>
+
+                <!-- Modules List -->
+                <div id="moduleList" class="module-list">
+                    <p class="empty-state">No activities yet. Add one to get started!</p>
+                </div>
+
+                <!-- Add Module Modal -->
+                <div id="addModuleModal" class="modal hidden">
+                    <div class="modal-content">
+                        <h3>Add New Activity</h3>
+                        <input type="text" id="moduleNameInput" placeholder="Enter activity name" class="input-field">
+                        <label for="moduleWeightInput" style="display: block; margin-bottom: 8px; font-weight: 600;">Weight (points):</label>
+                        <input type="number" id="moduleWeightInput" placeholder="1" min="1" max="100" value="1" class="input-field">
+                        <div class="modal-buttons">
+                            <button id="createModuleBtn" class="btn btn-primary">Add Activity</button>
+                            <button id="cancelModuleBtn" class="btn btn-secondary">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add Task Modal -->
+                <div id="addTaskModal" class="modal hidden">
+                    <div class="modal-content">
+                        <h3>Add New Task to <span id="taskModuleName"></span></h3>
+                        <input type="text" id="taskNameInput" placeholder="Enter task name" class="input-field">
+                        <label for="taskWeightInput" style="display: block; margin-bottom: 8px; font-weight: 600;">Weight (points):</label>
+                        <input type="number" id="taskWeightInput" placeholder="1" min="1" max="100" value="1" class="input-field">
+                        <div class="modal-buttons">
+                            <button id="createTaskBtn" class="btn btn-primary">Add Task</button>
+                            <button id="cancelTaskBtn" class="btn btn-secondary">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Back Button -->
+                <button id="backBtn" class="btn btn-secondary back-btn">← Back to Courses</button>
+            </section>
+        </main>
+    </div>
+
+    <script src="assets/scripts/renderer.js"></script>
+</body>
+</html>

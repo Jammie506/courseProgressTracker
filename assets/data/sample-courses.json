@@ -1,0 +1,132 @@
+[
+  {
+    "id": "course1",
+    "name": "IT Skills 4N1123",
+    "modules": [
+      {
+        "id": "module1",
+        "name": "Word Processing",
+        "completed": false,
+        "weight": 1,
+        "tasks": [
+          { 
+            "id": "task1", 
+            "name": "Collection of Work - Task 1", 
+            "completed": false, 
+            "weight": 0.5 }, 
+          { 
+            "id": "task2", 
+            "name": "Collection of Work - Task 2 Part 1", 
+            "completed": false, 
+            "weight": 0.5 }, 
+          { 
+            "id": "task3", 
+            "name": "Collection of Work - Task 2 Part 2", 
+            "completed": false, 
+            "weight": 0.5 }, 
+          { 
+            "id": "task4", 
+            "name": "Collection of Work - Task 3", 
+            "completed": false, 
+            "weight": 0.5 }, 
+          { 
+            "id": "task5", 
+            "name": "Collection of Work - Task 4", 
+            "completed": false, 
+            "weight": 0.5 }, 
+          { 
+            "id": "task6", 
+            "name": "Collection of Work - Task 5", 
+            "completed": false, 
+            "weight": 0.5 }, 
+          { 
+            "id": "task7", 
+            "name": "Practical Examination", 
+            "completed": false, 
+            "weight": 0.5 }
+        ]
+      },
+      {
+        "id": "module2",
+        "name": "Data Entry",
+        "completed": false,
+        "weight": 2,
+        "tasks": [
+          {
+            "id": "task1", 
+            "name": "Speed Typing - Practical Examination", 
+            "completed": false, 
+            "weight": 0.5
+          },
+          {
+            "id": "task2", 
+            "name": "Proof Reading - Practical Examination", 
+            "completed": false, 
+            "weight": 0.5
+          }
+        ]
+      },
+      {
+        "id": "module3",
+        "name": "Technology Concepts",
+        "completed": false,
+        "weight": 2,
+        "tasks": [
+          {
+            "id": "task1", 
+            "name": "Collection of Work - Part A", 
+            "completed": false, 
+            "weight": 0.5
+          },
+          {
+            "id": "task2", 
+            "name": "Collection of Work - Part B", 
+            "completed": false, 
+            "weight": 0.5
+          },
+          {
+            "id": "task3", 
+            "name": "Collection of Work - Part C", 
+            "completed": false, 
+            "weight": 0.5
+          }
+        ]
+      },
+      {
+        "id": "module4",
+        "name": "File Management",
+        "completed": false,
+        "weight": 3,
+        "tasks": [
+          {
+            "id": "task1", 
+            "name": "Practical Examination", 
+            "completed": false, 
+            "weight": 0.5
+          }
+        ]
+      },
+      {
+        "id": "module5",
+        "name": "Internet & Email",
+        "completed": false,
+        "weight": 5,
+        "tasks": [
+          {
+            "id": "task1", 
+            "name": "Practical Examination - Navigating the Internet", 
+            "completed": false, 
+            "weight": 0.5
+          },
+          {
+            "id": "task2", 
+            "name": "Practical Examination - Managing an Email Account", 
+            "completed": false, 
+            "weight": 0.5
+          }
+        ]
+      }
+    ],
+    "createdAt": "2026-02-12T15:00:00.000Z"
+  }
+]
