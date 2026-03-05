@@ -1,6 +1,6 @@
 {
   "name": "learner-progress-tracker",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Track learner progress through course modules",
   "author": "Jamie McCarthy",
   "main": "assets/scripts/main.js",
@@ -20,20 +20,21 @@
   },
   "build": {
     "appId": "com.learnerprogresstracker.app",
-    "productName": "Learner Progress Tracker",
+    "productName": "Course Progress Tracker",
     "directories": {
       "buildResources": "assets"
     },
     "files": [
       "assets/scripts/main.js",
-      "preload.js",
+      "assets/scripts/preload.js",
       "index.html",
-      "renderer.js",
-      "styles.css",
-      "sample-courses.json",
+      "assets/scripts/renderer.js",
+      "assets/style/styles.css",
+      "assets/data/sample-courses.json",
       "data/**/*"
     ],
     "win": {
+      "icon": "assets/images/youthreachLogo512x512.png",
       "target": [
         {
           "target": "nsis",
