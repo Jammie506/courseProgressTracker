@@ -23,6 +23,10 @@
                             <option value="classic">Classic (Static)</option>
                         </select>
                     </div>
+                    <label for="showPointsToggle" class="display-toggle-row" role="menuitemcheckbox" aria-checked="false">
+                        <span class="display-toggle-text">Show Weighting</span>
+                        <input type="checkbox" id="showPointsToggle" class="display-toggle-input" aria-label="Toggle weighting visibility">
+                    </label>
                 </div>
             </div>
             <nav class="header-nav">
@@ -110,14 +114,18 @@
             <!-- Course Selection/Creation Section -->
             <section class="course-section hidden">
                 <div class="section-header">
-                    <h2>Modules</h2>
+                    <div class="section-heading-actions">
+                        <h2>Modules</h2>
+                        <details class="backup-dropdown">
+                            <summary class="backup-dropdown-toggle">Data Tools</summary>
+                            <div class="backup-dropdown-menu" aria-label="Backup and restore tools">
+                                <button id="exportBackupBtn" class="btn btn-secondary" type="button">Export Backup to Desktop</button>
+                                <button id="restoreBackupBtn" class="btn btn-secondary" type="button">Restore from Backup File</button>
+                                <button id="restoreSampleBtn" class="btn btn-danger" type="button">Restore Sample Data</button>
+                            </div>
+                        </details>
+                    </div>
                     <button id="addCourseBtn" class="btn btn-primary">+ New Module</button>
-                </div>
-
-                <div class="backup-actions" aria-label="Backup and restore tools">
-                    <button id="exportBackupBtn" class="btn btn-secondary">Export Backup to Desktop</button>
-                    <button id="restoreBackupBtn" class="btn btn-secondary">Restore from Backup File</button>
-                    <button id="restoreSampleBtn" class="btn btn-danger">Restore Sample Data</button>
                 </div>
                 
                 <div id="courseList" class="course-list">

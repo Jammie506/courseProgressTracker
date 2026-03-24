@@ -18,8 +18,10 @@ const welcomeNavBtn = document.getElementById('welcomeNavBtn');
 const coursesNavBtn = document.getElementById('coursesNavBtn');
 const themeSelect = document.getElementById('themeSelect');
 const darkModeToggle = document.getElementById('darkModeToggle');
+const showPointsToggle = document.getElementById('showPointsToggle');
 const displayMenuBtn = document.getElementById('displayMenuBtn');
 const displayMenuPanel = document.getElementById('displayMenuPanel');
+const backupDropdown = document.querySelector('.backup-dropdown');
 
 const moduleSection = document.getElementById('moduleSection');
 const addModuleBtn = document.getElementById('addModuleBtn');
@@ -57,7 +59,9 @@ let hasPendingAutosave = false;
 
 const themeStorageKey = 'app-theme';
 const colorModeStorageKey = 'app-color-mode';
+const showPointsStorageKey = 'app-show-points';
 const colorSchemeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+let showPoints = false;
 
 // Overall Progress Elements
 const totalCoursesCount = document.getElementById('totalCoursesCount');
@@ -120,6 +124,15 @@ function setupEventListeners() {
         });
     }
 
+    if (showPointsToggle) {
+        showPointsToggle.addEventListener('change', () => {
+            const shouldShowPoints = showPointsToggle.checked;
+            storeShowPointsPreference(shouldShowPoints);
+            applyShowPoints(shouldShowPoints);
+            closeDisplayMenu();
+        });
+    }
+
     colorSchemeMediaQuery.addEventListener('change', () => {
         if (!getStoredColorModePreference()) {
             applyColorMode(null);
@@ -144,13 +157,21 @@ function setupEventListeners() {
         });
     }
 
+    if (backupDropdown) {
+        backupDropdown.addEventListener('click', (event) => {
+            event.stopPropagation();
+        });
+    }
+
     document.addEventListener('click', () => {
         closeDisplayMenu();
+        closeBackupDropdown();
     });
 
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
             closeDisplayMenu();
+            closeBackupDropdown();
         }
     });
 }
@@ -174,6 +195,14 @@ function closeDisplayMenu() {
     displayMenuBtn.setAttribute('aria-expanded', 'false');
 }
 
+// Closes the data tools dropdown when focus shifts away from it.
+function closeBackupDropdown() {
+    if (!backupDropdown) {
+        return;
+    }
+    backupDropdown.removeAttribute('open');
+}
+
 // THEME FUNCTIONS
 // Loads and applies saved display preferences on app startup.
 function initializeDisplaySettings() {
@@ -184,6 +213,7 @@ function initializeDisplaySettings() {
     }
 
     applyColorMode(getStoredColorModePreference());
+    applyShowPoints(getStoredShowPointsPreference());
 }
 
 // Applies a named theme and persists preference locally.
@@ -225,6 +255,43 @@ function applyColorMode(mode) {
     if (darkModeToggle) {
         darkModeToggle.checked = normalizedMode === 'dark';
     }
+}
+
+// Reads persisted points visibility preference; defaults to hidden.
+function getStoredShowPointsPreference() {
+    try {
+        return localStorage.getItem(showPointsStorageKey) === 'true';
+    } catch (error) {
+        return false;
+    }
+}
+
+// Persists points visibility choice.
+function storeShowPointsPreference(shouldShowPoints) {
+    try {
+        localStorage.setItem(showPointsStorageKey, shouldShowPoints ? 'true' : 'false');
+    } catch (error) {
+        // Ignore storage errors in restricted contexts.
+    }
+}
+
+// Applies points visibility and re-renders affected sections immediately.
+function applyShowPoints(shouldShowPoints) {
+    showPoints = Boolean(shouldShowPoints);
+    document.documentElement.setAttribute('data-show-points', showPoints ? 'true' : 'false');
+
+    if (showPointsToggle) {
+        showPointsToggle.checked = showPoints;
+        showPointsToggle.parentElement?.setAttribute('aria-checked', showPoints ? 'true' : 'false');
+    }
+
+    renderCourses();
+    const course = courses.find(c => c.id === currentCourseId);
+    if (course && !moduleSection.classList.contains('hidden')) {
+        renderModules(course);
+        updateProgressBar(course);
+    }
+    updateOverallProgress();
 }
 
 // AUTOSAVE FUNCTIONS
@@ -307,6 +374,7 @@ async function flushAutosave(reason = 'manual') {
 // BACKUP AND RESTORE FUNCTIONS
 // Exports the full local store to a user-readable JSON file on Desktop.
 async function exportBackupToDesktop() {
+    closeBackupDropdown();
     try {
         const result = await window.electronAPI.exportBackupToDesktop();
         if (result && result.success) {
@@ -322,6 +390,7 @@ async function exportBackupToDesktop() {
 
 // Restores from a selected backup file with two explicit confirmations.
 async function restoreFromBackupFile() {
+    closeBackupDropdown();
     const confirmOne = confirm(
         'Are you sure you want to restore from a backup file? This will overwrite your current app data.'
     );
@@ -362,6 +431,7 @@ async function restoreFromBackupFile() {
 
 // Resets app data to bundled sample data with two explicit confirmations.
 async function restoreSampleData() {
+    closeBackupDropdown();
     const confirmOne = confirm(
         'Are you sure you want to restore sample data? This will overwrite your current app data.'
     );
@@ -418,14 +488,15 @@ function renderCourses() {
     courseList.innerHTML = courses.map(course => {
         const moduleCount = course.modules.length;
         const completedCount = course.modules.filter(m => m.completed).length;
+        const isSelected = currentCourseId === course.id && !moduleSection.classList.contains('hidden');
         return `
-            <div class="course-card">
+            <div class="course-card ${isSelected ? 'course-card-active' : ''}" onclick="handleCourseCardClick(event, '${course.id}')">
                 <h3>${escapeHtml(course.name)}</h3>
                 <div class="course-info">
                     <span class="course-modules">${completedCount}/${moduleCount} modules</span>
                     <div style="display: flex; gap: 8px;">
-                        <button class="btn btn-primary" onclick="selectCourse('${course.id}')">Open</button>
-                        <button class="btn btn-danger" onclick="deleteCourse('${course.id}')">Delete</button>
+                        <button class="btn btn-primary" onclick="event.stopPropagation(); selectCourse('${course.id}')">Open</button>
+                        <button class="btn btn-danger" onclick="event.stopPropagation(); deleteCourse('${course.id}')">Delete</button>
                     </div>
                 </div>
             </div>
@@ -484,8 +555,25 @@ function selectCourse(courseId) {
         currentCourseName.textContent = course.name;
         renderModules(course);
         moduleSection.classList.remove('hidden');
-        window.scrollTo(0, 0);
     }
+}
+
+// Makes the entire course card act as an open/close toggle.
+function handleCourseCardClick(event, courseId) {
+    const clickedElement = event.target;
+    if (clickedElement instanceof HTMLElement && clickedElement.closest('button, a, input, select, textarea, label')) {
+        return;
+    }
+
+    const isAlreadyOpen = currentCourseId === courseId && !moduleSection.classList.contains('hidden');
+    if (isAlreadyOpen) {
+        backToCourses();
+        renderCourses();
+        return;
+    }
+
+    selectCourse(courseId);
+    renderCourses();
 }
 
 // MODULE FUNCTIONS
@@ -561,7 +649,7 @@ function renderModules(course) {
                             ${chevron}
                             <div>
                                 <div class="module-name">${escapeHtml(module.name)}</div>
-                                <div class="module-meta">Weight: ${weight} point${weight !== 1 ? 's' : ''} | Tasks: ${tasks.length}</div>
+                                <div class="module-meta">${showPoints ? `Weight: ${weight} point${weight !== 1 ? 's' : ''} | ` : ''}Tasks: ${tasks.length}</div>
                             </div>
                         </div>
                     </div>
@@ -715,7 +803,9 @@ function updateProgressBar(course) {
 
     const percentage = totalWeight > 0 ? Math.round((completedWeight / totalWeight) * 100) : 0;
     progressFill.style.width = percentage + '%';
-    progressText.textContent = `${completedWeight}/${totalWeight} Points Complete (${percentage}%)`;
+    progressText.textContent = showPoints
+        ? `${completedWeight}/${totalWeight} Points Complete (${percentage}%)`
+        : `${percentage}% Complete`;
 }
 
 // OVERALL PROGRESS
@@ -728,12 +818,27 @@ function updateOverallProgress() {
 
     courses.forEach(course => {
         course.modules.forEach(module => {
-            const weight = module.weight || 1;
-            totalWeight += weight;
             totalModules += 1;
-            
+
+            const moduleWeight = module.weight || 1;
+            const tasks = module.tasks || [];
+
+            if (tasks.length === 0) {
+                totalWeight += moduleWeight;
+                if (module.completed) {
+                    completedWeight += moduleWeight;
+                }
+            } else {
+                const totalTaskWeight = tasks.reduce((sum, task) => sum + (task.weight || 1), 0);
+                totalWeight += totalTaskWeight;
+                tasks.forEach(task => {
+                    if (task.completed) {
+                        completedWeight += (task.weight || 1);
+                    }
+                });
+            }
+
             if (module.completed) {
-                completedWeight += weight;
                 completedModules += 1;
             }
         });
@@ -747,7 +852,9 @@ function updateOverallProgress() {
     // Update progress bar
     const percentage = totalWeight > 0 ? Math.round((completedWeight / totalWeight) * 100) : 0;
     overallProgressFill.style.width = percentage + '%';
-    overallProgressText.textContent = `${percentage}% Complete • ${completedWeight}/${totalWeight} Points`;
+    overallProgressText.textContent = showPoints
+        ? `${percentage}% Complete • ${completedWeight}/${totalWeight} Points`
+        : `${percentage}% Complete`;
 }
 
 // UTILITIES
@@ -810,6 +917,7 @@ async function createTask() {
                 module.tasks.push(newTask);
                 markDataDirty();
                 renderModules(course);
+                updateOverallProgress();
                 closeAddTaskModal();
             }
         }
@@ -849,6 +957,7 @@ async function toggleTask(courseId, moduleId, taskId, completed) {
                     
                     renderModules(course);
                     updateProgressBar(course);
+                    updateOverallProgress();
                 }
             }
         }
@@ -867,6 +976,7 @@ async function deleteTask(courseId, moduleId, taskId) {
                     module.tasks = module.tasks.filter(t => t.id !== taskId);
                     markDataDirty();
                     renderModules(course);
+                    updateOverallProgress();
                 }
             }
         }
