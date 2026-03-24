@@ -34,7 +34,7 @@
       "data/**/*"
     ],
     "win": {
-      "icon": "assets/images/youthreachLogo512x512.png",
+      "icon": "assets/images/courseProgressTrack.png",
       "target": [
         {
           "target": "nsis",

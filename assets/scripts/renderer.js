@@ -1,4 +1,5 @@
 // DOM Elements
+// Buttons, modals, and containers used in course-level workflows.
 const addCourseBtn = document.getElementById('addCourseBtn');
 const addCourseModal = document.getElementById('addCourseModal');
 const courseNameInput = document.getElementById('courseNameInput');
@@ -33,6 +34,7 @@ const taskModuleName = document.getElementById('taskModuleName');
 const createTaskBtn = document.getElementById('createTaskBtn');
 const cancelTaskBtn = document.getElementById('cancelTaskBtn');
 
+// In-memory UI state mirrored from persisted data.
 let courses = [];
 let currentCourseId = null;
 let currentModuleId = null;
@@ -46,11 +48,13 @@ const overallProgressFill = document.getElementById('overallProgressFill');
 const overallProgressText = document.getElementById('overallProgressText');
 
 // Initialize
+// Bootstraps data load and event wiring once the DOM is ready.
 document.addEventListener('DOMContentLoaded', () => {
     loadCourses();
     setupEventListeners();
 });
 
+// Registers all UI event handlers in one place.
 function setupEventListeners() {
     startLearningBtn.addEventListener('click', showCourses);
 
@@ -78,6 +82,7 @@ function setupEventListeners() {
 }
 
 // COURSE FUNCTIONS
+// Loads persisted courses through the preload API.
 async function loadCourses() {
     try {
         courses = await window.electronAPI.loadCourses();
@@ -87,6 +92,7 @@ async function loadCourses() {
     }
 }
 
+// Renders all course cards and refreshes overall progress.
 function renderCourses() {
     if (courses.length === 0) {
         courseList.innerHTML = '<p class="empty-state">No courses yet. Create one to get started!</p>';
@@ -114,16 +120,19 @@ function renderCourses() {
     updateOverallProgress();
 }
 
+// Opens the create-course modal and focuses input for quick entry.
 function openAddCourseModal() {
     addCourseModal.classList.remove('hidden');
     courseNameInput.focus();
 }
 
+// Closes the create-course modal and resets input state.
 function closeAddCourseModal() {
     addCourseModal.classList.add('hidden');
     courseNameInput.value = '';
 }
 
+// Creates a new course and updates local UI state.
 async function createCourse() {
     const courseName = courseNameInput.value.trim();
     if (!courseName) {
@@ -139,6 +148,7 @@ async function createCourse() {
     }
 }
 
+// Deletes a course after user confirmation.
 async function deleteCourse(courseId) {
     if (confirm('Are you sure you want to delete this course?')) {
         const result = await window.electronAPI.deleteCourse(courseId);
@@ -149,6 +159,7 @@ async function deleteCourse(courseId) {
     }
 }
 
+// Sets active course and shows module management view.
 function selectCourse(courseId) {
     currentCourseId = courseId;
     const course = courses.find(c => c.id === courseId);
@@ -161,6 +172,7 @@ function selectCourse(courseId) {
 }
 
 // MODULE FUNCTIONS
+// Renders module cards, their progress, and nested tasks.
 function renderModules(course) {
     if (course.modules.length === 0) {
         moduleList.innerHTML = '<p class="empty-state">No modules yet. Add one to get started!</p>';
@@ -190,6 +202,7 @@ function renderModules(course) {
             `;
         }
 
+        // Only render the task list when the module is expanded.
         const tasksHtml = tasks.length > 0 && isExpanded ? `
             <div class="tasks-container">
                 ${tasks.map(task => {
@@ -213,6 +226,7 @@ function renderModules(course) {
             </div>
         ` : '';
 
+        // Show a chevron only for modules that have tasks.
         const chevron = tasks.length > 0 ? `<span class="module-chevron ${isExpanded ? 'expanded' : ''}">▼</span>` : '';
 
         return `
@@ -248,17 +262,20 @@ function renderModules(course) {
     updateProgressBar(course);
 }
 
+// Opens the add-module modal.
 function openAddModuleModal() {
     addModuleModal.classList.remove('hidden');
     moduleNameInput.focus();
 }
 
+// Closes add-module modal and resets fields.
 function closeAddModuleModal() {
     addModuleModal.classList.add('hidden');
     moduleNameInput.value = '';
     moduleWeightInput.value = '1';
 }
 
+// Creates a module for the currently selected course.
 async function createModule() {
     const moduleName = moduleNameInput.value.trim();
     const weight = parseInt(moduleWeightInput.value) || 1;
@@ -280,6 +297,7 @@ async function createModule() {
     }
 }
 
+// Updates the completed state for a single module.
 async function toggleModule(courseId, moduleId, completed) {
     const result = await window.electronAPI.updateModule(courseId, moduleId, { completed });
     if (result) {
@@ -295,6 +313,7 @@ async function toggleModule(courseId, moduleId, completed) {
     }
 }
 
+// Deletes a module and re-renders the active course.
 async function deleteModule(courseId, moduleId) {
     if (confirm('Are you sure you want to delete this module?')) {
         const result = await window.electronAPI.deleteModule(courseId, moduleId);
@@ -309,12 +328,14 @@ async function deleteModule(courseId, moduleId) {
     }
 }
 
+// Returns from module detail view to course list view.
 function backToCourses() {
     moduleSection.classList.add('hidden');
     currentCourseId = null;
 }
 
 // NAVIGATION FUNCTIONS
+// Shows the welcome screen and updates nav button styles.
 function showWelcome() {
     welcomeSection.classList.remove('hidden');
     courseSection.classList.add('hidden');
@@ -325,6 +346,7 @@ function showWelcome() {
     coursesNavBtn.classList.remove('nav-btn-active');
 }
 
+// Shows course/progress screens and updates nav button styles.
 function showCourses() {
     welcomeSection.classList.add('hidden');
     courseSection.classList.remove('hidden');
@@ -336,6 +358,7 @@ function showCourses() {
 }
 
 // PROGRESS BAR
+// Computes weighted progress for modules/tasks inside one course.
 function updateProgressBar(course) {
     if (course.modules.length === 0) {
         progressFill.style.width = '0%';
@@ -376,6 +399,7 @@ function updateProgressBar(course) {
 }
 
 // OVERALL PROGRESS
+// Computes cross-course stats shown in the dashboard summary.
 function updateOverallProgress() {
     let totalWeight = 0;
     let completedWeight = 0;
@@ -407,6 +431,7 @@ function updateOverallProgress() {
 }
 
 // UTILITIES
+// Safely escapes user-provided text before injecting into HTML.
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
@@ -414,6 +439,7 @@ function escapeHtml(text) {
 }
 
 // Toggle module expansion
+// Expands/collapses the task list for a module and re-renders view.
 function toggleModuleExpand(moduleId) {
     if (expandedModules.has(moduleId)) {
         expandedModules.delete(moduleId);
@@ -428,6 +454,7 @@ function toggleModuleExpand(moduleId) {
 }
 
 // TASK FUNCTIONS
+// Opens add-task modal for a specific module.
 function openAddTaskModal(moduleId, moduleName) {
     currentModuleId = moduleId;
     taskModuleName.textContent = moduleName;
@@ -435,6 +462,7 @@ function openAddTaskModal(moduleId, moduleName) {
     taskNameInput.focus();
 }
 
+// Closes add-task modal and clears temporary task state.
 function closeAddTaskModal() {
     addTaskModal.classList.add('hidden');
     taskNameInput.value = '';
@@ -442,6 +470,7 @@ function closeAddTaskModal() {
     currentModuleId = null;
 }
 
+// Creates a task in the currently selected module.
 async function createTask() {
     const taskName = taskNameInput.value.trim();
     const weight = parseInt(taskWeightInput.value) || 1;
@@ -466,6 +495,7 @@ async function createTask() {
     }
 }
 
+// Toggles task completion and keeps parent module completion in sync.
 async function toggleTask(courseId, moduleId, taskId, completed) {
     const result = await window.electronAPI.updateTask(courseId, moduleId, taskId, { completed });
     if (result) {
@@ -502,6 +532,7 @@ async function toggleTask(courseId, moduleId, taskId, completed) {
     }
 }
 
+// Deletes a task after confirmation and refreshes the module list.
 async function deleteTask(courseId, moduleId, taskId) {
     if (confirm('Are you sure you want to delete this task?')) {
         const result = await window.electronAPI.deleteTask(courseId, moduleId, taskId);

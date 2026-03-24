@@ -2,9 +2,11 @@ const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
+// Development toggle used for optional tooling like DevTools.
 const isDev = process.env.NODE_ENV === 'development';
 
 let mainWindow;
+// Store user data in Electron's per-user app data directory.
 const dataDir = path.join(app.getPath('userData'), 'data');
 const dataFile = path.join(dataDir, 'courses.json');
 
@@ -28,6 +30,7 @@ if (!fs.existsSync(dataFile)) {
 }
 
 function createWindow() {
+  // Create the single main application window.
   mainWindow = new BrowserWindow({
     width: 1000,
     height: 750,
@@ -39,13 +42,14 @@ function createWindow() {
       enableRemoteModule: false,
       nodeIntegration: false
     },
-    icon: path.join(__dirname, '..', 'images', 'youthreachLogo512x512.png') //Why not working? TODO
+    icon: path.join(__dirname, '..', 'images', 'courseProgressTrack.png')
   });
 
   const startUrl = isDev
     ? 'http://localhost:3000'
     : `file://${path.join(__dirname, '../build/index.html')}`;
 
+  // Load local HTML directly for this desktop app.
   mainWindow.loadFile('index.html');
 
   if (isDev) {
@@ -53,19 +57,23 @@ function createWindow() {
   }
 
   mainWindow.on('closed', () => {
+    // Clear reference so macOS re-activation can recreate the window.
     mainWindow = null;
   });
 }
 
+// App lifecycle: create a window once Electron is initialized.
 app.on('ready', createWindow);
 
 app.on('window-all-closed', () => {
+  // On macOS, apps commonly stay open until the user quits explicitly.
   if (process.platform !== 'darwin') {
     app.quit();
   }
 });
 
 app.on('activate', () => {
+  // Recreate the window when the dock icon is clicked and none exist.
   if (mainWindow === null) {
     createWindow();
   }
@@ -73,6 +81,7 @@ app.on('activate', () => {
 
 // IPC Handlers for data management
 ipcMain.handle('load-courses', async () => {
+  // Return persisted courses, or an empty list if none exist yet.
   try {
     if (fs.existsSync(dataFile)) {
       const data = fs.readFileSync(dataFile, 'utf-8');
@@ -86,6 +95,7 @@ ipcMain.handle('load-courses', async () => {
 });
 
 ipcMain.handle('save-courses', async (event, courses) => {
+  // Overwrite the full course list from renderer state.
   try {
     fs.writeFileSync(dataFile, JSON.stringify(courses, null, 2));
     return { success: true };
@@ -96,6 +106,7 @@ ipcMain.handle('save-courses', async (event, courses) => {
 });
 
 ipcMain.handle('add-course', async (event, courseName) => {
+  // Create a new course with a timestamp-based ID.
   try {
     let courses = [];
     if (fs.existsSync(dataFile)) {
@@ -117,6 +128,7 @@ ipcMain.handle('add-course', async (event, courseName) => {
 });
 
 ipcMain.handle('delete-course', async (event, courseId) => {
+  // Remove a course by ID if it exists.
   try {
     let courses = [];
     if (fs.existsSync(dataFile)) {
@@ -136,6 +148,7 @@ ipcMain.handle('delete-course', async (event, courseId) => {
 });
 
 ipcMain.handle('add-module', async (event, courseId, moduleName, weight = 1) => {
+  // Add a module to a specific course.
   try {
     let courses = [];
     if (fs.existsSync(dataFile)) {
@@ -162,6 +175,7 @@ ipcMain.handle('add-module', async (event, courseId, moduleName, weight = 1) => 
 });
 
 ipcMain.handle('update-module', async (event, courseId, moduleId, updates) => {
+  // Apply partial updates (for example, completed state) to one module.
   try {
     let courses = [];
     if (fs.existsSync(dataFile)) {
@@ -184,6 +198,7 @@ ipcMain.handle('update-module', async (event, courseId, moduleId, updates) => {
 });
 
 ipcMain.handle('delete-module', async (event, courseId, moduleId) => {
+  // Remove a module from the selected course.
   try {
     let courses = [];
     if (fs.existsSync(dataFile)) {
@@ -203,6 +218,7 @@ ipcMain.handle('delete-module', async (event, courseId, moduleId) => {
 });
 
 ipcMain.handle('add-task', async (event, courseId, moduleId, taskName, weight = 1) => {
+  // Add a task under the specified module.
   try {
     let courses = [];
     if (fs.existsSync(dataFile)) {
@@ -232,6 +248,7 @@ ipcMain.handle('add-task', async (event, courseId, moduleId, taskName, weight = 
 });
 
 ipcMain.handle('update-task', async (event, courseId, moduleId, taskId, updates) => {
+  // Apply partial updates to a task.
   try {
     let courses = [];
     if (fs.existsSync(dataFile)) {
@@ -257,6 +274,7 @@ ipcMain.handle('update-task', async (event, courseId, moduleId, taskId, updates)
 });
 
 ipcMain.handle('delete-task', async (event, courseId, moduleId, taskId) => {
+  // Remove a task from a module.
   try {
     let courses = [];
     if (fs.existsSync(dataFile)) {
