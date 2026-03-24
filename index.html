@@ -13,6 +13,18 @@
                 <h1>📚 Course Progress Tracker</h1>
                 <p class="subtitle">See your progress across all your classes</p>
             </div>
+            <div class="display-controls" aria-label="Display settings">
+                <button id="displayMenuBtn" class="display-menu-btn" aria-expanded="false" aria-controls="displayMenuPanel" aria-label="Open display options">☰</button>
+                <div id="displayMenuPanel" class="display-menu-panel" role="menu" aria-label="Display options">
+                    <div class="theme-switch-wrap" aria-label="Theme selection">
+                        <label for="themeSelect" class="theme-switch-label">Theme</label>
+                        <select id="themeSelect" class="theme-switch-select">
+                            <option value="portfolio">Portfolio (Dynamic)</option>
+                            <option value="classic">Classic (Static)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
             <nav class="header-nav">
                 <button id="welcomeNavBtn" class="nav-btn nav-btn-active" onclick="showWelcome()">Welcome</button>
                 <button id="coursesNavBtn" class="nav-btn" onclick="showCourses()">Courses</button>
@@ -179,6 +191,14 @@
                 <button id="backBtn" class="btn btn-secondary back-btn">← Back to Courses</button>
             </section>
         </main>
+    </div>
+
+    <div class="mode-toggle-wrap mode-toggle-floating" aria-label="Color mode toggle">
+        <span class="mode-toggle-text">Dark Mode</span>
+        <input type="checkbox" id="darkModeToggle" class="mode-toggle-input" aria-label="Toggle dark mode">
+        <label for="darkModeToggle" class="mode-toggle-label" title="Toggle dark mode">
+            <span class="mode-toggle-knob"></span>
+        </label>
     </div>
 
     <script src="assets/scripts/renderer.js"></script>

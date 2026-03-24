@@ -16,6 +16,10 @@ const courseSection = document.querySelector('.course-section');
 const overallProgressSection = document.querySelector('.overall-progress-section');
 const welcomeNavBtn = document.getElementById('welcomeNavBtn');
 const coursesNavBtn = document.getElementById('coursesNavBtn');
+const themeSelect = document.getElementById('themeSelect');
+const darkModeToggle = document.getElementById('darkModeToggle');
+const displayMenuBtn = document.getElementById('displayMenuBtn');
+const displayMenuPanel = document.getElementById('displayMenuPanel');
 
 const moduleSection = document.getElementById('moduleSection');
 const addModuleBtn = document.getElementById('addModuleBtn');
@@ -51,6 +55,10 @@ let isDirty = false;
 let isAutosaving = false;
 let hasPendingAutosave = false;
 
+const themeStorageKey = 'app-theme';
+const colorModeStorageKey = 'app-color-mode';
+const colorSchemeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
 // Overall Progress Elements
 const totalCoursesCount = document.getElementById('totalCoursesCount');
 const totalModulesCount = document.getElementById('totalModulesCount');
@@ -61,6 +69,7 @@ const overallProgressText = document.getElementById('overallProgressText');
 // Initialize
 // Bootstraps data load and event wiring once the DOM is ready.
 document.addEventListener('DOMContentLoaded', () => {
+    initializeDisplaySettings();
     loadCourses();
     setupEventListeners();
     setupAutosave();
@@ -95,6 +104,127 @@ function setupEventListeners() {
     exportBackupBtn.addEventListener('click', exportBackupToDesktop);
     restoreBackupBtn.addEventListener('click', restoreFromBackupFile);
     restoreSampleBtn.addEventListener('click', restoreSampleData);
+
+    if (themeSelect) {
+        themeSelect.addEventListener('change', (event) => {
+            applyTheme(event.target.value);
+            closeDisplayMenu();
+        });
+    }
+
+    if (darkModeToggle) {
+        darkModeToggle.addEventListener('change', () => {
+            const selectedMode = darkModeToggle.checked ? 'dark' : 'light';
+            storeColorModePreference(selectedMode);
+            applyColorMode(selectedMode);
+        });
+    }
+
+    colorSchemeMediaQuery.addEventListener('change', () => {
+        if (!getStoredColorModePreference()) {
+            applyColorMode(null);
+        }
+    });
+
+    if (displayMenuBtn) {
+        displayMenuBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const shouldOpen = !displayMenuPanel.classList.contains('open');
+            if (shouldOpen) {
+                openDisplayMenu();
+            } else {
+                closeDisplayMenu();
+            }
+        });
+    }
+
+    if (displayMenuPanel) {
+        displayMenuPanel.addEventListener('click', (event) => {
+            event.stopPropagation();
+        });
+    }
+
+    document.addEventListener('click', () => {
+        closeDisplayMenu();
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeDisplayMenu();
+        }
+    });
+}
+
+// DISPLAY MENU FUNCTIONS
+// Opens the header display options menu.
+function openDisplayMenu() {
+    if (!displayMenuPanel || !displayMenuBtn) {
+        return;
+    }
+    displayMenuPanel.classList.add('open');
+    displayMenuBtn.setAttribute('aria-expanded', 'true');
+}
+
+// Closes the header display options menu.
+function closeDisplayMenu() {
+    if (!displayMenuPanel || !displayMenuBtn) {
+        return;
+    }
+    displayMenuPanel.classList.remove('open');
+    displayMenuBtn.setAttribute('aria-expanded', 'false');
+}
+
+// THEME FUNCTIONS
+// Loads and applies saved display preferences on app startup.
+function initializeDisplaySettings() {
+    const savedTheme = localStorage.getItem(themeStorageKey) || 'portfolio';
+    applyTheme(savedTheme);
+    if (themeSelect) {
+        themeSelect.value = savedTheme;
+    }
+
+    applyColorMode(getStoredColorModePreference());
+}
+
+// Applies a named theme and persists preference locally.
+function applyTheme(themeName) {
+    const normalizedTheme = themeName === 'portfolio' ? 'portfolio' : 'classic';
+    document.documentElement.setAttribute('data-theme', normalizedTheme);
+    localStorage.setItem(themeStorageKey, normalizedTheme);
+}
+
+// Reads persisted color mode choice, returning null when no explicit preference is saved.
+function getStoredColorModePreference() {
+    try {
+        const storedMode = localStorage.getItem(colorModeStorageKey);
+        return storedMode === 'light' || storedMode === 'dark' ? storedMode : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+// Persists explicit light/dark mode preference.
+function storeColorModePreference(mode) {
+    try {
+        localStorage.setItem(colorModeStorageKey, mode);
+    } catch (error) {
+        // Ignore storage errors in restricted contexts.
+    }
+}
+
+// Applies color mode to the document and syncs toggle state. When mode is null, it follows OS preference.
+function applyColorMode(mode) {
+    const normalizedMode = mode === 'light' || mode === 'dark'
+        ? mode
+        : colorSchemeMediaQuery.matches
+            ? 'dark'
+            : 'light';
+
+    document.documentElement.setAttribute('data-color-mode', normalizedMode);
+
+    if (darkModeToggle) {
+        darkModeToggle.checked = normalizedMode === 'dark';
+    }
 }
 
 // AUTOSAVE FUNCTIONS
