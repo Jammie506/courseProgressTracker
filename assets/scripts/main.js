@@ -1,14 +1,231 @@
-const { app, BrowserWindow, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 // Development toggle used for optional tooling like DevTools.
 const isDev = process.env.NODE_ENV === 'development';
+const CURRENT_SCHEMA_VERSION = 1;
 
 let mainWindow;
 // Store user data in Electron's per-user app data directory.
 const dataDir = path.join(app.getPath('userData'), 'data');
 const dataFile = path.join(dataDir, 'courses.json');
+const backupDataFile = path.join(dataDir, 'courses.backup.json');
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function createId() {
+  return `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function fileTimestamp() {
+  return new Date().toISOString().replace(/[:]/g, '-').replace(/\..+$/, '');
+}
+
+function toNumberOrDefault(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function createDefaultStore() {
+  return {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    lastUpdatedAt: nowIso(),
+    courses: [],
+    progressHistory: []
+  };
+}
+
+function normalizeTask(task, index) {
+  const safeTask = task && typeof task === 'object' ? task : {};
+  const createdAt = typeof safeTask.createdAt === 'string' ? safeTask.createdAt : nowIso();
+  const updatedAt = typeof safeTask.updatedAt === 'string' ? safeTask.updatedAt : createdAt;
+
+  return {
+    id: typeof safeTask.id === 'string' && safeTask.id.trim() ? safeTask.id : `task-${index + 1}-${createId()}`,
+    name: typeof safeTask.name === 'string' && safeTask.name.trim() ? safeTask.name : 'Untitled Task',
+    completed: Boolean(safeTask.completed),
+    weight: toNumberOrDefault(safeTask.weight, 1),
+    createdAt,
+    updatedAt
+  };
+}
+
+function normalizeModule(module, index) {
+  const safeModule = module && typeof module === 'object' ? module : {};
+  const tasks = Array.isArray(safeModule.tasks) ? safeModule.tasks : [];
+  const createdAt = typeof safeModule.createdAt === 'string' ? safeModule.createdAt : nowIso();
+  const updatedAt = typeof safeModule.updatedAt === 'string' ? safeModule.updatedAt : createdAt;
+
+  return {
+    id: typeof safeModule.id === 'string' && safeModule.id.trim() ? safeModule.id : `module-${index + 1}-${createId()}`,
+    name: typeof safeModule.name === 'string' && safeModule.name.trim() ? safeModule.name : 'Untitled Module',
+    completed: Boolean(safeModule.completed),
+    weight: toNumberOrDefault(safeModule.weight, 1),
+    tasks: tasks.map((task, taskIndex) => normalizeTask(task, taskIndex)),
+    createdAt,
+    updatedAt
+  };
+}
+
+function normalizeCourse(course, index) {
+  const safeCourse = course && typeof course === 'object' ? course : {};
+  const modules = Array.isArray(safeCourse.modules) ? safeCourse.modules : [];
+  const createdAt = typeof safeCourse.createdAt === 'string' ? safeCourse.createdAt : nowIso();
+  const updatedAt = typeof safeCourse.updatedAt === 'string' ? safeCourse.updatedAt : createdAt;
+
+  return {
+    id: typeof safeCourse.id === 'string' && safeCourse.id.trim() ? safeCourse.id : `course-${index + 1}-${createId()}`,
+    name: typeof safeCourse.name === 'string' && safeCourse.name.trim() ? safeCourse.name : 'Untitled Course',
+    modules: modules.map((module, moduleIndex) => normalizeModule(module, moduleIndex)),
+    createdAt,
+    updatedAt
+  };
+}
+
+function normalizeProgressEvent(event, index) {
+  const safeEvent = event && typeof event === 'object' ? event : {};
+  const timestamp = typeof safeEvent.timestamp === 'string' ? safeEvent.timestamp : nowIso();
+
+  return {
+    id: typeof safeEvent.id === 'string' && safeEvent.id.trim() ? safeEvent.id : `event-${index + 1}-${createId()}`,
+    eventType: typeof safeEvent.eventType === 'string' ? safeEvent.eventType : 'state-change',
+    entityType: typeof safeEvent.entityType === 'string' ? safeEvent.entityType : 'unknown',
+    entityId: typeof safeEvent.entityId === 'string' ? safeEvent.entityId : '',
+    courseId: typeof safeEvent.courseId === 'string' ? safeEvent.courseId : null,
+    moduleId: typeof safeEvent.moduleId === 'string' ? safeEvent.moduleId : null,
+    oldValue: safeEvent.oldValue,
+    newValue: safeEvent.newValue,
+    timestamp
+  };
+}
+
+function migrateAndNormalizeStore(payload) {
+  // Legacy format support: older versions stored a raw array of courses.
+  const asObject = Array.isArray(payload)
+    ? { courses: payload }
+    : payload && typeof payload === 'object'
+      ? payload
+      : {};
+
+  let schemaVersion = toNumberOrDefault(asObject.schemaVersion, 0);
+  if (schemaVersion < 1) {
+    schemaVersion = 1;
+  }
+
+  const courses = Array.isArray(asObject.courses) ? asObject.courses : [];
+  const progressHistory = Array.isArray(asObject.progressHistory) ? asObject.progressHistory : [];
+
+  return {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    lastUpdatedAt: typeof asObject.lastUpdatedAt === 'string' ? asObject.lastUpdatedAt : nowIso(),
+    courses: courses.map((course, courseIndex) => normalizeCourse(course, courseIndex)),
+    progressHistory: progressHistory.map((event, eventIndex) => normalizeProgressEvent(event, eventIndex))
+  };
+}
+
+function readAndNormalizeStoreFile(filePath, label) {
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+
+  try {
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    return migrateAndNormalizeStore(parsed);
+  } catch (error) {
+    console.error(`Error reading ${label} store file:`, error);
+    return null;
+  }
+}
+
+function readStoreFromDisk() {
+  const primaryStore = readAndNormalizeStoreFile(dataFile, 'primary');
+  if (primaryStore) {
+    return primaryStore;
+  }
+
+  const backupStore = readAndNormalizeStoreFile(backupDataFile, 'backup');
+  if (backupStore) {
+    try {
+      // Promote backup to primary when primary is missing/corrupt.
+      writeJsonAtomic(dataFile, backupStore);
+      console.log('Recovered primary data file from backup snapshot.');
+    } catch (error) {
+      console.error('Error restoring primary file from backup:', error);
+    }
+    return backupStore;
+  }
+
+  return createDefaultStore();
+}
+
+function writeJsonAtomic(filePath, data) {
+  const tempFilePath = `${filePath}.tmp`;
+  const json = JSON.stringify(data, null, 2);
+  let fileDescriptor;
+
+  try {
+    fileDescriptor = fs.openSync(tempFilePath, 'w');
+    fs.writeFileSync(fileDescriptor, json, 'utf-8');
+    fs.fsyncSync(fileDescriptor);
+    fs.closeSync(fileDescriptor);
+    fileDescriptor = null;
+    fs.renameSync(tempFilePath, filePath);
+  } catch (error) {
+    if (fileDescriptor !== undefined && fileDescriptor !== null) {
+      try {
+        fs.closeSync(fileDescriptor);
+      } catch (closeError) {
+        console.error('Error closing temp file descriptor:', closeError);
+      }
+    }
+
+    if (fs.existsSync(tempFilePath)) {
+      try {
+        fs.unlinkSync(tempFilePath);
+      } catch (unlinkError) {
+        console.error('Error cleaning up temp file:', unlinkError);
+      }
+    }
+
+    throw error;
+  }
+}
+
+function saveStoreToDisk(store) {
+  const normalizedStore = migrateAndNormalizeStore(store);
+  normalizedStore.lastUpdatedAt = nowIso();
+
+  const currentPrimaryStore = readAndNormalizeStoreFile(dataFile, 'primary-before-save');
+  if (currentPrimaryStore) {
+    // Keep at least one local backup snapshot for recovery.
+    writeJsonAtomic(backupDataFile, currentPrimaryStore);
+  }
+
+  writeJsonAtomic(dataFile, normalizedStore);
+  return normalizedStore;
+}
+
+function writeStoreCopyToDesktop(prefix, store) {
+  const desktopDir = app.getPath('desktop');
+  const fileName = `${prefix}-${fileTimestamp()}.json`;
+  const filePath = path.join(desktopDir, fileName);
+  const normalizedStore = migrateAndNormalizeStore(store);
+  normalizedStore.lastUpdatedAt = nowIso();
+  writeJsonAtomic(filePath, normalizedStore);
+  return filePath;
+}
+
+function addProgressEvent(store, event) {
+  store.progressHistory.push(normalizeProgressEvent({
+    ...event,
+    id: createId(),
+    timestamp: nowIso()
+  }, store.progressHistory.length));
+}
 
 // Ensure data directory exists
 if (!fs.existsSync(dataDir)) {
@@ -20,12 +237,16 @@ if (!fs.existsSync(dataFile)) {
   try {
     const samplePath = path.join(__dirname, '..', 'data', 'sample-courses.json');
     if (fs.existsSync(samplePath)) {
-      const sampleData = fs.readFileSync(samplePath, 'utf-8');
-      fs.writeFileSync(dataFile, sampleData);
+      const sampleData = JSON.parse(fs.readFileSync(samplePath, 'utf-8'));
+      const initialStore = migrateAndNormalizeStore(sampleData);
+      saveStoreToDisk(initialStore);
       console.log('Initialized with sample courses');
+    } else {
+      saveStoreToDisk(createDefaultStore());
     }
   } catch (error) {
     console.error('Error initializing sample courses:', error);
+    saveStoreToDisk(createDefaultStore());
   }
 }
 
@@ -83,11 +304,10 @@ app.on('activate', () => {
 ipcMain.handle('load-courses', async () => {
   // Return persisted courses, or an empty list if none exist yet.
   try {
-    if (fs.existsSync(dataFile)) {
-      const data = fs.readFileSync(dataFile, 'utf-8');
-      return JSON.parse(data);
-    }
-    return [];
+    const store = readStoreFromDisk();
+    // Persist normalized/migrated data so future loads are fast and consistent.
+    saveStoreToDisk(store);
+    return store.courses;
   } catch (error) {
     console.error('Error loading courses:', error);
     return [];
@@ -97,7 +317,9 @@ ipcMain.handle('load-courses', async () => {
 ipcMain.handle('save-courses', async (event, courses) => {
   // Overwrite the full course list from renderer state.
   try {
-    fs.writeFileSync(dataFile, JSON.stringify(courses, null, 2));
+    const store = readStoreFromDisk();
+    store.courses = Array.isArray(courses) ? courses : [];
+    saveStoreToDisk(store);
     return { success: true };
   } catch (error) {
     console.error('Error saving courses:', error);
@@ -108,19 +330,18 @@ ipcMain.handle('save-courses', async (event, courses) => {
 ipcMain.handle('add-course', async (event, courseName) => {
   // Create a new course with a timestamp-based ID.
   try {
-    let courses = [];
-    if (fs.existsSync(dataFile)) {
-      courses = JSON.parse(fs.readFileSync(dataFile, 'utf-8'));
-    }
+    const store = readStoreFromDisk();
+    const timestamp = nowIso();
     const newCourse = {
-      id: Date.now().toString(),
+      id: createId(),
       name: courseName,
       modules: [],
-      createdAt: new Date().toISOString()
+      createdAt: timestamp,
+      updatedAt: timestamp
     };
-    courses.push(newCourse);
-    fs.writeFileSync(dataFile, JSON.stringify(courses, null, 2));
-    return newCourse;
+    store.courses.push(newCourse);
+    const savedStore = saveStoreToDisk(store);
+    return savedStore.courses.find(c => c.id === newCourse.id) || newCourse;
   } catch (error) {
     console.error('Error adding course:', error);
     return null;
@@ -130,14 +351,11 @@ ipcMain.handle('add-course', async (event, courseName) => {
 ipcMain.handle('delete-course', async (event, courseId) => {
   // Remove a course by ID if it exists.
   try {
-    let courses = [];
-    if (fs.existsSync(dataFile)) {
-      courses = JSON.parse(fs.readFileSync(dataFile, 'utf-8'));
-    }
-    const courseExists = courses.some(c => c.id === courseId);
+    const store = readStoreFromDisk();
+    const courseExists = store.courses.some(c => c.id === courseId);
     if (courseExists) {
-      courses = courses.filter(c => c.id !== courseId);
-      fs.writeFileSync(dataFile, JSON.stringify(courses, null, 2));
+      store.courses = store.courses.filter(c => c.id !== courseId);
+      saveStoreToDisk(store);
       return { success: true };
     }
     return { success: false };
@@ -150,22 +368,27 @@ ipcMain.handle('delete-course', async (event, courseId) => {
 ipcMain.handle('add-module', async (event, courseId, moduleName, weight = 1) => {
   // Add a module to a specific course.
   try {
-    let courses = [];
-    if (fs.existsSync(dataFile)) {
-      courses = JSON.parse(fs.readFileSync(dataFile, 'utf-8'));
-    }
-    const course = courses.find(c => c.id === courseId);
+    const store = readStoreFromDisk();
+    const course = store.courses.find(c => c.id === courseId);
     if (course) {
+      const timestamp = nowIso();
       const newModule = {
-        id: Date.now().toString(),
+        id: createId(),
         name: moduleName,
         completed: false,
         weight: weight,
-        tasks: []
+        tasks: [],
+        createdAt: timestamp,
+        updatedAt: timestamp
       };
       course.modules.push(newModule);
-      fs.writeFileSync(dataFile, JSON.stringify(courses, null, 2));
-      return newModule;
+      course.updatedAt = timestamp;
+      const savedStore = saveStoreToDisk(store);
+      const savedCourse = savedStore.courses.find(c => c.id === courseId);
+      if (!savedCourse) {
+        return null;
+      }
+      return savedCourse.modules.find(m => m.id === newModule.id) || newModule;
     }
     return null;
   } catch (error) {
@@ -177,17 +400,38 @@ ipcMain.handle('add-module', async (event, courseId, moduleName, weight = 1) => 
 ipcMain.handle('update-module', async (event, courseId, moduleId, updates) => {
   // Apply partial updates (for example, completed state) to one module.
   try {
-    let courses = [];
-    if (fs.existsSync(dataFile)) {
-      courses = JSON.parse(fs.readFileSync(dataFile, 'utf-8'));
-    }
-    const course = courses.find(c => c.id === courseId);
+    const store = readStoreFromDisk();
+    const course = store.courses.find(c => c.id === courseId);
     if (course) {
       const module = course.modules.find(m => m.id === moduleId);
       if (module) {
+        const previousCompleted = Boolean(module.completed);
         Object.assign(module, updates);
-        fs.writeFileSync(dataFile, JSON.stringify(courses, null, 2));
-        return module;
+        module.updatedAt = nowIso();
+        course.updatedAt = module.updatedAt;
+
+        if (
+          updates
+          && Object.prototype.hasOwnProperty.call(updates, 'completed')
+          && previousCompleted !== Boolean(module.completed)
+        ) {
+          addProgressEvent(store, {
+            eventType: 'completion-toggled',
+            entityType: 'module',
+            entityId: module.id,
+            courseId: course.id,
+            moduleId: module.id,
+            oldValue: previousCompleted,
+            newValue: Boolean(module.completed)
+          });
+        }
+
+        const savedStore = saveStoreToDisk(store);
+        const savedCourse = savedStore.courses.find(c => c.id === courseId);
+        if (!savedCourse) {
+          return null;
+        }
+        return savedCourse.modules.find(m => m.id === moduleId) || null;
       }
     }
     return null;
@@ -200,14 +444,12 @@ ipcMain.handle('update-module', async (event, courseId, moduleId, updates) => {
 ipcMain.handle('delete-module', async (event, courseId, moduleId) => {
   // Remove a module from the selected course.
   try {
-    let courses = [];
-    if (fs.existsSync(dataFile)) {
-      courses = JSON.parse(fs.readFileSync(dataFile, 'utf-8'));
-    }
-    const course = courses.find(c => c.id === courseId);
+    const store = readStoreFromDisk();
+    const course = store.courses.find(c => c.id === courseId);
     if (course) {
       course.modules = course.modules.filter(m => m.id !== moduleId);
-      fs.writeFileSync(dataFile, JSON.stringify(courses, null, 2));
+      course.updatedAt = nowIso();
+      saveStoreToDisk(store);
       return { success: true };
     }
     return { success: false };
@@ -220,24 +462,35 @@ ipcMain.handle('delete-module', async (event, courseId, moduleId) => {
 ipcMain.handle('add-task', async (event, courseId, moduleId, taskName, weight = 1) => {
   // Add a task under the specified module.
   try {
-    let courses = [];
-    if (fs.existsSync(dataFile)) {
-      courses = JSON.parse(fs.readFileSync(dataFile, 'utf-8'));
-    }
-    const course = courses.find(c => c.id === courseId);
+    const store = readStoreFromDisk();
+    const course = store.courses.find(c => c.id === courseId);
     if (course) {
       const module = course.modules.find(m => m.id === moduleId);
       if (module) {
+        const timestamp = nowIso();
         if (!module.tasks) module.tasks = [];
         const newTask = {
-          id: Date.now().toString(),
+          id: createId(),
           name: taskName,
           completed: false,
-          weight: weight
+          weight: weight,
+          createdAt: timestamp,
+          updatedAt: timestamp
         };
         module.tasks.push(newTask);
-        fs.writeFileSync(dataFile, JSON.stringify(courses, null, 2));
-        return newTask;
+        module.updatedAt = timestamp;
+        course.updatedAt = timestamp;
+
+        const savedStore = saveStoreToDisk(store);
+        const savedCourse = savedStore.courses.find(c => c.id === courseId);
+        if (!savedCourse) {
+          return null;
+        }
+        const savedModule = savedCourse.modules.find(m => m.id === moduleId);
+        if (!savedModule) {
+          return null;
+        }
+        return savedModule.tasks.find(t => t.id === newTask.id) || newTask;
       }
     }
     return null;
@@ -250,19 +503,45 @@ ipcMain.handle('add-task', async (event, courseId, moduleId, taskName, weight = 
 ipcMain.handle('update-task', async (event, courseId, moduleId, taskId, updates) => {
   // Apply partial updates to a task.
   try {
-    let courses = [];
-    if (fs.existsSync(dataFile)) {
-      courses = JSON.parse(fs.readFileSync(dataFile, 'utf-8'));
-    }
-    const course = courses.find(c => c.id === courseId);
+    const store = readStoreFromDisk();
+    const course = store.courses.find(c => c.id === courseId);
     if (course) {
       const module = course.modules.find(m => m.id === moduleId);
       if (module && module.tasks) {
         const task = module.tasks.find(t => t.id === taskId);
         if (task) {
+          const previousCompleted = Boolean(task.completed);
           Object.assign(task, updates);
-          fs.writeFileSync(dataFile, JSON.stringify(courses, null, 2));
-          return task;
+          task.updatedAt = nowIso();
+          module.updatedAt = task.updatedAt;
+          course.updatedAt = task.updatedAt;
+
+          if (
+            updates
+            && Object.prototype.hasOwnProperty.call(updates, 'completed')
+            && previousCompleted !== Boolean(task.completed)
+          ) {
+            addProgressEvent(store, {
+              eventType: 'completion-toggled',
+              entityType: 'task',
+              entityId: task.id,
+              courseId: course.id,
+              moduleId: module.id,
+              oldValue: previousCompleted,
+              newValue: Boolean(task.completed)
+            });
+          }
+
+          const savedStore = saveStoreToDisk(store);
+          const savedCourse = savedStore.courses.find(c => c.id === courseId);
+          if (!savedCourse) {
+            return null;
+          }
+          const savedModule = savedCourse.modules.find(m => m.id === moduleId);
+          if (!savedModule || !savedModule.tasks) {
+            return null;
+          }
+          return savedModule.tasks.find(t => t.id === taskId) || null;
         }
       }
     }
@@ -276,16 +555,15 @@ ipcMain.handle('update-task', async (event, courseId, moduleId, taskId, updates)
 ipcMain.handle('delete-task', async (event, courseId, moduleId, taskId) => {
   // Remove a task from a module.
   try {
-    let courses = [];
-    if (fs.existsSync(dataFile)) {
-      courses = JSON.parse(fs.readFileSync(dataFile, 'utf-8'));
-    }
-    const course = courses.find(c => c.id === courseId);
+    const store = readStoreFromDisk();
+    const course = store.courses.find(c => c.id === courseId);
     if (course) {
       const module = course.modules.find(m => m.id === moduleId);
       if (module && module.tasks) {
         module.tasks = module.tasks.filter(t => t.id !== taskId);
-        fs.writeFileSync(dataFile, JSON.stringify(courses, null, 2));
+        module.updatedAt = nowIso();
+        course.updatedAt = module.updatedAt;
+        saveStoreToDisk(store);
         return { success: true };
       }
     }
@@ -293,5 +571,73 @@ ipcMain.handle('delete-task', async (event, courseId, moduleId, taskId) => {
   } catch (error) {
     console.error('Error deleting task:', error);
     return { success: false };
+  }
+});
+
+ipcMain.handle('export-backup-to-desktop', async () => {
+  try {
+    const store = readStoreFromDisk();
+    const filePath = writeStoreCopyToDesktop('course-progress-backup', store);
+    return { success: true, filePath };
+  } catch (error) {
+    console.error('Error exporting backup:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('restore-from-backup-file', async () => {
+  try {
+    const result = await dialog.showOpenDialog({
+      title: 'Select backup file',
+      properties: ['openFile'],
+      filters: [
+        { name: 'JSON Files', extensions: ['json'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
+
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+      return { cancelled: true };
+    }
+
+    const restorePath = result.filePaths[0];
+    const raw = fs.readFileSync(restorePath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    const restoredStore = migrateAndNormalizeStore(parsed);
+
+    const currentStore = readStoreFromDisk();
+    const safetyBackupPath = writeStoreCopyToDesktop('course-progress-pre-restore-backup', currentStore);
+    saveStoreToDisk(restoredStore);
+
+    return {
+      success: true,
+      restoredFrom: restorePath,
+      safetyBackupPath
+    };
+  } catch (error) {
+    console.error('Error restoring from backup file:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('restore-sample-data', async () => {
+  try {
+    const samplePath = path.join(__dirname, '..', 'data', 'sample-courses.json');
+    if (!fs.existsSync(samplePath)) {
+      return { success: false, error: 'Sample data file not found.' };
+    }
+
+    const raw = fs.readFileSync(samplePath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    const sampleStore = migrateAndNormalizeStore(parsed);
+
+    const currentStore = readStoreFromDisk();
+    const safetyBackupPath = writeStoreCopyToDesktop('course-progress-pre-sample-restore-backup', currentStore);
+    saveStoreToDisk(sampleStore);
+
+    return { success: true, safetyBackupPath };
+  } catch (error) {
+    console.error('Error restoring sample data:', error);
+    return { success: false, error: error.message };
   }
 });

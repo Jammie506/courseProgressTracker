@@ -6,6 +6,9 @@ const courseNameInput = document.getElementById('courseNameInput');
 const createCourseBtn = document.getElementById('createCourseBtn');
 const cancelCourseBtn = document.getElementById('cancelCourseBtn');
 const courseList = document.getElementById('courseList');
+const exportBackupBtn = document.getElementById('exportBackupBtn');
+const restoreBackupBtn = document.getElementById('restoreBackupBtn');
+const restoreSampleBtn = document.getElementById('restoreSampleBtn');
 
 const welcomeSection = document.getElementById('welcomeSection');
 const startLearningBtn = document.getElementById('startLearningBtn');
@@ -40,6 +43,14 @@ let currentCourseId = null;
 let currentModuleId = null;
 let expandedModules = new Set(); // Track which modules have expanded tasks
 
+const AUTOSAVE_DEBOUNCE_MS = 1500;
+const AUTOSAVE_INTERVAL_MS = 30000;
+let autosaveTimer = null;
+let autosaveIntervalId = null;
+let isDirty = false;
+let isAutosaving = false;
+let hasPendingAutosave = false;
+
 // Overall Progress Elements
 const totalCoursesCount = document.getElementById('totalCoursesCount');
 const totalModulesCount = document.getElementById('totalModulesCount');
@@ -52,6 +63,7 @@ const overallProgressText = document.getElementById('overallProgressText');
 document.addEventListener('DOMContentLoaded', () => {
     loadCourses();
     setupEventListeners();
+    setupAutosave();
 });
 
 // Registers all UI event handlers in one place.
@@ -79,6 +91,178 @@ function setupEventListeners() {
     });
 
     backBtn.addEventListener('click', backToCourses);
+
+    exportBackupBtn.addEventListener('click', exportBackupToDesktop);
+    restoreBackupBtn.addEventListener('click', restoreFromBackupFile);
+    restoreSampleBtn.addEventListener('click', restoreSampleData);
+}
+
+// AUTOSAVE FUNCTIONS
+// Enables periodic and event-driven autosave with a debounce to avoid excessive writes.
+function setupAutosave() {
+    if (!autosaveIntervalId) {
+        autosaveIntervalId = setInterval(() => {
+            if (isDirty) {
+                void flushAutosave('interval');
+            }
+        }, AUTOSAVE_INTERVAL_MS);
+    }
+
+    window.addEventListener('blur', () => {
+        void flushAutosave('window-blur');
+    });
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            void flushAutosave('document-hidden');
+        }
+    });
+
+    window.addEventListener('beforeunload', () => {
+        void flushAutosave('beforeunload');
+    });
+}
+
+// Marks local state as needing persistence and starts a debounce timer.
+function markDataDirty() {
+    isDirty = true;
+
+    if (autosaveTimer) {
+        clearTimeout(autosaveTimer);
+    }
+
+    autosaveTimer = setTimeout(() => {
+        void flushAutosave('debounce');
+    }, AUTOSAVE_DEBOUNCE_MS);
+}
+
+// Flushes pending changes through the existing save API and serializes concurrent save requests.
+async function flushAutosave(reason = 'manual') {
+    if (!isDirty) {
+        return { success: true, skipped: true, reason };
+    }
+
+    if (isAutosaving) {
+        hasPendingAutosave = true;
+        return { success: true, queued: true, reason };
+    }
+
+    isAutosaving = true;
+
+    try {
+        const result = await window.electronAPI.saveCourses(courses);
+        if (result && result.success) {
+            isDirty = false;
+            return { success: true, reason };
+        }
+        return {
+            success: false,
+            reason,
+            error: result && result.error ? result.error : 'Unknown autosave error'
+        };
+    } catch (error) {
+        console.error(`Autosave failed (${reason}):`, error);
+        return { success: false, reason, error: error.message };
+    } finally {
+        isAutosaving = false;
+        if (hasPendingAutosave) {
+            hasPendingAutosave = false;
+            if (isDirty) {
+                void flushAutosave('queued');
+            }
+        }
+    }
+}
+
+// BACKUP AND RESTORE FUNCTIONS
+// Exports the full local store to a user-readable JSON file on Desktop.
+async function exportBackupToDesktop() {
+    try {
+        const result = await window.electronAPI.exportBackupToDesktop();
+        if (result && result.success) {
+            alert(`Backup exported to Desktop:\n${result.filePath}`);
+        } else {
+            alert(`Export failed: ${result?.error || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error exporting backup:', error);
+        alert('Error exporting backup. Please try again.');
+    }
+}
+
+// Restores from a selected backup file with two explicit confirmations.
+async function restoreFromBackupFile() {
+    const confirmOne = confirm(
+        'Are you sure you want to restore from a backup file? This will overwrite your current app data.'
+    );
+    if (!confirmOne) {
+        return;
+    }
+
+    const confirmTwo = confirm(
+        'Final confirmation: restore will replace current data. Continue?'
+    );
+    if (!confirmTwo) {
+        return;
+    }
+
+    try {
+        const result = await window.electronAPI.restoreFromBackupFile();
+        if (result && result.cancelled) {
+            return;
+        }
+
+        if (result && result.success) {
+            await loadCourses();
+            backToCourses();
+            showCourses();
+            alert(
+                `Restore completed.\n\n` +
+                `Restored from: ${result.restoredFrom}\n` +
+                `Safety backup saved to Desktop: ${result.safetyBackupPath}`
+            );
+        } else {
+            alert(`Restore failed: ${result?.error || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error restoring backup:', error);
+        alert('Error restoring backup. Please try again.');
+    }
+}
+
+// Resets app data to bundled sample data with two explicit confirmations.
+async function restoreSampleData() {
+    const confirmOne = confirm(
+        'Are you sure you want to restore sample data? This will overwrite your current app data.'
+    );
+    if (!confirmOne) {
+        return;
+    }
+
+    const confirmTwo = confirm(
+        'Final confirmation: sample restore will replace current data. Continue?'
+    );
+    if (!confirmTwo) {
+        return;
+    }
+
+    try {
+        const result = await window.electronAPI.restoreSampleData();
+        if (result && result.success) {
+            await loadCourses();
+            backToCourses();
+            showCourses();
+            alert(
+                `Sample data restored.\n` +
+                `Safety backup saved to Desktop: ${result.safetyBackupPath}`
+            );
+        } else {
+            alert(`Sample restore failed: ${result?.error || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error restoring sample data:', error);
+        alert('Error restoring sample data. Please try again.');
+    }
 }
 
 // COURSE FUNCTIONS
@@ -86,6 +270,7 @@ function setupEventListeners() {
 async function loadCourses() {
     try {
         courses = await window.electronAPI.loadCourses();
+        isDirty = false;
         renderCourses();
     } catch (error) {
         console.error('Error loading courses:', error);
@@ -143,6 +328,7 @@ async function createCourse() {
     const newCourse = await window.electronAPI.addCourse(courseName);
     if (newCourse) {
         courses.push(newCourse);
+        markDataDirty();
         renderCourses();
         closeAddCourseModal();
     }
@@ -154,6 +340,7 @@ async function deleteCourse(courseId) {
         const result = await window.electronAPI.deleteCourse(courseId);
         if (result.success) {
             courses = courses.filter(c => c.id !== courseId);
+            markDataDirty();
             renderCourses();
         }
     }
@@ -290,6 +477,7 @@ async function createModule() {
         const course = courses.find(c => c.id === currentCourseId);
         if (course) {
             course.modules.push(newModule);
+            markDataDirty();
             renderModules(course);
             updateOverallProgress();
             closeAddModuleModal();
@@ -306,6 +494,7 @@ async function toggleModule(courseId, moduleId, completed) {
             const module = course.modules.find(m => m.id === moduleId);
             if (module) {
                 module.completed = completed;
+                markDataDirty();
                 updateProgressBar(course);
                 updateOverallProgress();
             }
@@ -321,6 +510,7 @@ async function deleteModule(courseId, moduleId) {
             const course = courses.find(c => c.id === courseId);
             if (course) {
                 course.modules = course.modules.filter(m => m.id !== moduleId);
+                markDataDirty();
                 renderModules(course);
                 updateOverallProgress();
             }
@@ -488,6 +678,7 @@ async function createTask() {
             if (module) {
                 if (!module.tasks) module.tasks = [];
                 module.tasks.push(newTask);
+                markDataDirty();
                 renderModules(course);
                 closeAddTaskModal();
             }
@@ -523,6 +714,8 @@ async function toggleTask(courseId, moduleId, taskId, completed) {
                             module.completed = false;
                         }
                     }
+
+                    markDataDirty();
                     
                     renderModules(course);
                     updateProgressBar(course);
@@ -542,6 +735,7 @@ async function deleteTask(courseId, moduleId, taskId) {
                 const module = course.modules.find(m => m.id === moduleId);
                 if (module && module.tasks) {
                     module.tasks = module.tasks.filter(t => t.id !== taskId);
+                    markDataDirty();
                     renderModules(course);
                 }
             }

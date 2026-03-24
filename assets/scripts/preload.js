@@ -17,5 +17,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Task CRUD and state updates.
   addTask: (courseId, moduleId, taskName, weight) => ipcRenderer.invoke('add-task', courseId, moduleId, taskName, weight),
   updateTask: (courseId, moduleId, taskId, updates) => ipcRenderer.invoke('update-task', courseId, moduleId, taskId, updates),
-  deleteTask: (courseId, moduleId, taskId) => ipcRenderer.invoke('delete-task', courseId, moduleId, taskId)
+  deleteTask: (courseId, moduleId, taskId) => ipcRenderer.invoke('delete-task', courseId, moduleId, taskId),
+
+  // Backup and restore tools.
+  exportBackupToDesktop: () => ipcRenderer.invoke('export-backup-to-desktop'),
+  restoreFromBackupFile: () => ipcRenderer.invoke('restore-from-backup-file'),
+  restoreSampleData: () => ipcRenderer.invoke('restore-sample-data')
 });
