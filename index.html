@@ -32,6 +32,7 @@
             <nav class="header-nav">
                 <button id="welcomeNavBtn" class="nav-btn nav-btn-active" onclick="showWelcome()">Welcome</button>
                 <button id="coursesNavBtn" class="nav-btn" onclick="showCourses()">Courses</button>
+                <button id="plannerNavBtn" class="nav-btn" onclick="showPlanner()">Planner</button>
             </nav>
         </header>
 
@@ -174,6 +175,8 @@
                         <input type="text" id="moduleNameInput" placeholder="Enter activity name" class="input-field">
                         <label for="moduleWeightInput" style="display: block; margin-bottom: 8px; font-weight: 600;">Weight (points):</label>
                         <input type="number" id="moduleWeightInput" placeholder="1" min="1" max="100" value="1" class="input-field">
+                        <label for="moduleDueDateInput" style="display: block; margin-bottom: 8px; font-weight: 600;">Due Date (optional):</label>
+                        <input type="date" id="moduleDueDateInput" class="input-field">
                         <div class="modal-buttons">
                             <button id="createModuleBtn" class="btn btn-primary">Add Activity</button>
                             <button id="cancelModuleBtn" class="btn btn-secondary">Cancel</button>
@@ -188,6 +191,8 @@
                         <input type="text" id="taskNameInput" placeholder="Enter task name" class="input-field">
                         <label for="taskWeightInput" style="display: block; margin-bottom: 8px; font-weight: 600;">Weight (points):</label>
                         <input type="number" id="taskWeightInput" placeholder="1" min="1" max="100" value="1" class="input-field">
+                        <label for="taskDueDateInput" style="display: block; margin-bottom: 8px; font-weight: 600;">Due Date (optional):</label>
+                        <input type="date" id="taskDueDateInput" class="input-field">
                         <div class="modal-buttons">
                             <button id="createTaskBtn" class="btn btn-primary">Add Task</button>
                             <button id="cancelTaskBtn" class="btn btn-secondary">Cancel</button>
@@ -197,6 +202,59 @@
 
                 <!-- Back Button -->
                 <button id="backBtn" class="btn btn-secondary back-btn">← Back to Courses</button>
+            </section>
+
+            <!-- Planner Section -->
+            <section id="plannerSection" class="planner-section hidden">
+                <div class="section-header">
+                    <h2>My Planner</h2>
+                </div>
+
+                <div class="planner-grid">
+                    <div class="planner-card">
+                        <div class="planner-card-header">
+                            <h3>Class Timetable</h3>
+                            <div class="planner-preset-wrap">
+                                <label for="timetablePresetSelect">Group Preset</label>
+                                <select id="timetablePresetSelect" class="input-field"></select>
+                            </div>
+                        </div>
+                        <p class="planner-hint">Select a preset if a learner changes group, then edit any cell as needed.</p>
+
+                        <details class="class-tag-details">
+                            <summary class="class-tag-details-toggle">Manage Class Tags</summary>
+                            <div class="class-tag-manager">
+                                <div class="class-tag-form">
+                                    <input id="classTagNameInput" type="text" class="input-field" placeholder="Class tag name (e.g. IT Skills)">
+                                    <input id="classTagColorInput" type="color" class="color-input" value="#468dbd" aria-label="Class tag color">
+                                    <select id="classTagCourseSelect" class="input-field"></select>
+                                    <button id="addClassTagBtn" class="btn btn-secondary" type="button">Add Tag</button>
+                                </div>
+                                <div id="classTagsList" class="class-tags-list"></div>
+                            </div>
+                        </details>
+
+                        <div id="timetableEditor" class="timetable-editor"></div>
+                        <datalist id="classTagNamesDatalist"></datalist>
+                    </div>
+
+                    <div class="planner-card">
+                        <div class="planner-card-header">
+                            <h3>Important Dates</h3>
+                        </div>
+                        <p class="planner-hint">Dates are automatically crossed off once they pass.</p>
+
+                        <div class="planner-date-form">
+                            <input id="importantDateTitleInput" type="text" class="input-field" placeholder="Event name (e.g. Mock Exam)">
+                            <div class="planner-date-form-row">
+                                <input id="importantDateInput" type="date" class="input-field">
+                                <button id="addImportantDateBtn" class="btn btn-primary" type="button">Add Date</button>
+                            </div>
+                        </div>
+
+                        <div id="importantDatesList" class="important-dates-list"></div>
+                    </div>
+                </div>
             </section>
         </main>
     </div>

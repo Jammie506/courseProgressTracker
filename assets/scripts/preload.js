@@ -9,18 +9,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
   addCourse: (courseName) => ipcRenderer.invoke('add-course', courseName),
 
   // Module CRUD and state updates.
-  addModule: (courseId, moduleName, weight) => ipcRenderer.invoke('add-module', courseId, moduleName, weight),
+  addModule: (courseId, moduleName, weight, dueDate) => ipcRenderer.invoke('add-module', courseId, moduleName, weight, dueDate),
   updateModule: (courseId, moduleId, updates) => ipcRenderer.invoke('update-module', courseId, moduleId, updates),
   deleteModule: (courseId, moduleId) => ipcRenderer.invoke('delete-module', courseId, moduleId),
   deleteCourse: (courseId) => ipcRenderer.invoke('delete-course', courseId),
 
   // Task CRUD and state updates.
-  addTask: (courseId, moduleId, taskName, weight) => ipcRenderer.invoke('add-task', courseId, moduleId, taskName, weight),
+  addTask: (courseId, moduleId, taskName, weight, dueDate) => ipcRenderer.invoke('add-task', courseId, moduleId, taskName, weight, dueDate),
   updateTask: (courseId, moduleId, taskId, updates) => ipcRenderer.invoke('update-task', courseId, moduleId, taskId, updates),
   deleteTask: (courseId, moduleId, taskId) => ipcRenderer.invoke('delete-task', courseId, moduleId, taskId),
 
   // Backup and restore tools.
   exportBackupToDesktop: () => ipcRenderer.invoke('export-backup-to-desktop'),
   restoreFromBackupFile: () => ipcRenderer.invoke('restore-from-backup-file'),
-  restoreSampleData: () => ipcRenderer.invoke('restore-sample-data')
+  restoreSampleData: () => ipcRenderer.invoke('restore-sample-data'),
+
+  // Planner persistence.
+  loadPlanner: () => ipcRenderer.invoke('load-planner'),
+  savePlanner: (planner) => ipcRenderer.invoke('save-planner', planner),
+  resetPlannerDefaults: () => ipcRenderer.invoke('reset-planner-defaults')
 });

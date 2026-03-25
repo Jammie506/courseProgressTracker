@@ -16,6 +16,7 @@ const courseSection = document.querySelector('.course-section');
 const overallProgressSection = document.querySelector('.overall-progress-section');
 const welcomeNavBtn = document.getElementById('welcomeNavBtn');
 const coursesNavBtn = document.getElementById('coursesNavBtn');
+const plannerNavBtn = document.getElementById('plannerNavBtn');
 const themeSelect = document.getElementById('themeSelect');
 const darkModeToggle = document.getElementById('darkModeToggle');
 const showPointsToggle = document.getElementById('showPointsToggle');
@@ -35,10 +36,26 @@ const currentCourseName = document.getElementById('currentCourseName');
 const progressFill = document.getElementById('progressFill');
 const progressText = document.getElementById('progressText');
 const moduleWeightInput = document.getElementById('moduleWeightInput');
+const moduleDueDateInput = document.getElementById('moduleDueDateInput');
+
+const plannerSection = document.getElementById('plannerSection');
+const timetablePresetSelect = document.getElementById('timetablePresetSelect');
+const timetableEditor = document.getElementById('timetableEditor');
+const classTagNameInput = document.getElementById('classTagNameInput');
+const classTagColorInput = document.getElementById('classTagColorInput');
+const classTagCourseSelect = document.getElementById('classTagCourseSelect');
+const addClassTagBtn = document.getElementById('addClassTagBtn');
+const classTagsList = document.getElementById('classTagsList');
+const classTagNamesDatalist = document.getElementById('classTagNamesDatalist');
+const importantDateTitleInput = document.getElementById('importantDateTitleInput');
+const importantDateInput = document.getElementById('importantDateInput');
+const addImportantDateBtn = document.getElementById('addImportantDateBtn');
+const importantDatesList = document.getElementById('importantDatesList');
 
 const addTaskModal = document.getElementById('addTaskModal');
 const taskNameInput = document.getElementById('taskNameInput');
 const taskWeightInput = document.getElementById('taskWeightInput');
+const taskDueDateInput = document.getElementById('taskDueDateInput');
 const taskModuleName = document.getElementById('taskModuleName');
 const createTaskBtn = document.getElementById('createTaskBtn');
 const cancelTaskBtn = document.getElementById('cancelTaskBtn');
@@ -48,6 +65,15 @@ let courses = [];
 let currentCourseId = null;
 let currentModuleId = null;
 let expandedModules = new Set(); // Track which modules have expanded tasks
+let planner = {
+    selectedTemplateId: '',
+    templates: [],
+    activeSchedule: [],
+    importantDates: [],
+    classTags: []
+};
+
+const RESET_PLANNER_OPTION_VALUE = '__reset-planner-defaults__';
 
 const AUTOSAVE_DEBOUNCE_MS = 1500;
 const AUTOSAVE_INTERVAL_MS = 30000;
@@ -61,7 +87,16 @@ const themeStorageKey = 'app-theme';
 const colorModeStorageKey = 'app-color-mode';
 const showPointsStorageKey = 'app-show-points';
 const colorSchemeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+const pageHeader = document.querySelector('header');
+const floatingModeToggle = document.querySelector('.mode-toggle-floating');
+
+const SCROLL_HIDE_DELTA_PX = 8;
+const SCROLL_TOP_SHOW_THRESHOLD_PX = 16;
+
 let showPoints = false;
+let isScrollUiHidden = false;
+let lastScrollY = window.scrollY;
+let isScrollTicking = false;
 
 // Overall Progress Elements
 const totalCoursesCount = document.getElementById('totalCoursesCount');
@@ -75,7 +110,9 @@ const overallProgressText = document.getElementById('overallProgressText');
 document.addEventListener('DOMContentLoaded', () => {
     initializeDisplaySettings();
     loadCourses();
+    loadPlanner();
     setupEventListeners();
+    setupScrollResponsiveUi();
     setupAutosave();
 });
 
@@ -108,6 +145,131 @@ function setupEventListeners() {
     exportBackupBtn.addEventListener('click', exportBackupToDesktop);
     restoreBackupBtn.addEventListener('click', restoreFromBackupFile);
     restoreSampleBtn.addEventListener('click', restoreSampleData);
+
+    if (timetablePresetSelect) {
+        timetablePresetSelect.addEventListener('change', async (event) => {
+            await applyPlannerTemplate(event.target.value);
+        });
+    }
+
+    if (timetableEditor) {
+        timetableEditor.addEventListener('click', (event) => {
+            const input = event.target;
+            const isPlannerField = input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement;
+            if (!isPlannerField) {
+                return;
+            }
+
+            const linkedCourseId = input.dataset.linkedCourseId;
+            const field = input.dataset.field;
+            const isClassField = field && field !== 'time';
+
+            if (!linkedCourseId || !isClassField) {
+                return;
+            }
+
+            if (event.shiftKey) {
+                // Allow inline timetable edits for linked classes when requested.
+                return;
+            }
+
+            event.preventDefault();
+            openCourseFromPlanner(linkedCourseId);
+        });
+
+        timetableEditor.addEventListener('input', async (event) => {
+            const input = event.target;
+            const isPlannerField = input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement;
+            if (!isPlannerField) {
+                return;
+            }
+
+            const rowIndex = Number(input.dataset.rowIndex);
+            const field = input.dataset.field;
+            if (!Number.isFinite(rowIndex) || !field || !planner.activeSchedule[rowIndex]) {
+                return;
+            }
+
+            planner.activeSchedule[rowIndex][field] = input.value;
+            await persistPlanner(false);
+        });
+    }
+
+    if (addClassTagBtn) {
+        addClassTagBtn.addEventListener('click', addClassTag);
+    }
+
+    if (classTagNameInput) {
+        classTagNameInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                void addClassTag();
+            }
+        });
+    }
+
+    if (classTagsList) {
+        classTagsList.addEventListener('click', (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) {
+                return;
+            }
+
+            const removeButton = target.closest('[data-remove-class-tag-id]');
+            if (removeButton) {
+                const tagId = removeButton.getAttribute('data-remove-class-tag-id');
+                if (tagId) {
+                    void removeClassTag(tagId);
+                }
+                return;
+            }
+
+            const openButton = target.closest('[data-open-course-id]');
+            if (openButton) {
+                const courseId = openButton.getAttribute('data-open-course-id');
+                if (courseId) {
+                    openCourseFromPlanner(courseId);
+                }
+            }
+        });
+    }
+
+    if (addImportantDateBtn) {
+        addImportantDateBtn.addEventListener('click', addImportantDate);
+    }
+
+    if (importantDateTitleInput) {
+        importantDateTitleInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                void addImportantDate();
+            }
+        });
+    }
+
+    if (importantDatesList) {
+        importantDatesList.addEventListener('click', (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) {
+                return;
+            }
+
+            const removeButton = target.closest('[data-remove-date-id]');
+            if (!removeButton) {
+                const openCourseButton = target.closest('[data-open-due-course-id]');
+                if (openCourseButton) {
+                    const courseId = openCourseButton.getAttribute('data-open-due-course-id');
+                    if (courseId) {
+                        openCourseFromPlanner(courseId);
+                    }
+                }
+                return;
+            }
+
+            const dateId = removeButton.getAttribute('data-remove-date-id');
+            if (dateId) {
+                void removeImportantDate(dateId);
+            }
+        });
+    }
 
     if (themeSelect) {
         themeSelect.addEventListener('change', (event) => {
@@ -174,6 +336,55 @@ function setupEventListeners() {
             closeBackupDropdown();
         }
     });
+}
+
+// SCROLL UI VISIBILITY
+// Hides header/toggle on downward scroll and reveals them on upward scroll.
+function setupScrollResponsiveUi() {
+    if (!pageHeader && !floatingModeToggle) {
+        return;
+    }
+
+    window.addEventListener('scroll', handleScrollVisibility, { passive: true });
+    updateScrollUiVisibility();
+}
+
+function handleScrollVisibility() {
+    if (isScrollTicking) {
+        return;
+    }
+
+    isScrollTicking = true;
+    window.requestAnimationFrame(() => {
+        updateScrollUiVisibility();
+        isScrollTicking = false;
+    });
+}
+
+function updateScrollUiVisibility() {
+    const currentScrollY = window.scrollY;
+    const scrollDelta = currentScrollY - lastScrollY;
+
+    if (currentScrollY <= SCROLL_TOP_SHOW_THRESHOLD_PX) {
+        setScrollUiHidden(false);
+    } else if (Math.abs(scrollDelta) >= SCROLL_HIDE_DELTA_PX) {
+        setScrollUiHidden(scrollDelta > 0);
+    }
+
+    lastScrollY = currentScrollY;
+}
+
+function setScrollUiHidden(shouldHide) {
+    if (isScrollUiHidden === shouldHide) {
+        return;
+    }
+
+    isScrollUiHidden = shouldHide;
+    document.body.classList.toggle('scroll-ui-hidden', shouldHide);
+
+    if (shouldHide) {
+        closeDisplayMenu();
+    }
 }
 
 // DISPLAY MENU FUNCTIONS
@@ -413,6 +624,7 @@ async function restoreFromBackupFile() {
 
         if (result && result.success) {
             await loadCourses();
+            await loadPlanner();
             backToCourses();
             showCourses();
             alert(
@@ -450,6 +662,7 @@ async function restoreSampleData() {
         const result = await window.electronAPI.restoreSampleData();
         if (result && result.success) {
             await loadCourses();
+            await loadPlanner();
             backToCourses();
             showCourses();
             alert(
@@ -475,6 +688,413 @@ async function loadCourses() {
     } catch (error) {
         console.error('Error loading courses:', error);
     }
+}
+
+// Loads planner data and renders planner controls.
+async function loadPlanner() {
+    try {
+        const loadedPlanner = await window.electronAPI.loadPlanner();
+        planner = normalizePlannerState(loadedPlanner);
+        renderPlanner();
+    } catch (error) {
+        console.error('Error loading planner:', error);
+    }
+}
+
+// Persists planner changes and keeps local state in sync with normalized backend data.
+async function persistPlanner(shouldRerender = true) {
+    try {
+        const result = await window.electronAPI.savePlanner(planner);
+        if (result && result.success && result.planner) {
+            planner = normalizePlannerState(result.planner);
+            if (shouldRerender) {
+                renderPlanner();
+            }
+        }
+    } catch (error) {
+        console.error('Error saving planner:', error);
+    }
+}
+
+// Resets planner-only data back to bundled defaults while keeping courses unchanged.
+async function resetPlannerDefaults() {
+    const confirmReset = confirm(
+        'Reset planner to defaults? This will replace your timetable, class tags, and important dates.'
+    );
+    if (!confirmReset) {
+        return;
+    }
+
+    try {
+        const result = await window.electronAPI.resetPlannerDefaults();
+        if (result && result.success && result.planner) {
+            planner = normalizePlannerState(result.planner);
+            renderPlanner();
+            alert('Planner reset to defaults.');
+        } else {
+            alert(`Planner reset failed: ${result?.error || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error resetting planner defaults:', error);
+        alert('Error resetting planner defaults. Please try again.');
+    }
+}
+
+// Normalizes planner payloads to avoid UI breakage if data is missing fields.
+function normalizePlannerState(payload) {
+    const safePlanner = payload && typeof payload === 'object' ? payload : {};
+    const templates = Array.isArray(safePlanner.templates) ? safePlanner.templates : [];
+    const activeSchedule = Array.isArray(safePlanner.activeSchedule) ? safePlanner.activeSchedule : [];
+    const importantDates = Array.isArray(safePlanner.importantDates) ? safePlanner.importantDates : [];
+
+    const normalizedTemplates = templates.map((template, templateIndex) => ({
+        id: typeof template?.id === 'string' && template.id.trim() ? template.id : `template-${templateIndex + 1}`,
+        name: typeof template?.name === 'string' && template.name.trim() ? template.name : `Group ${templateIndex + 1}`,
+        slots: (Array.isArray(template?.slots) ? template.slots : []).map((slot, slotIndex) => normalizePlannerSlot(slot, slotIndex))
+    }));
+
+    const selectedTemplateId = typeof safePlanner.selectedTemplateId === 'string' && safePlanner.selectedTemplateId.trim()
+        ? safePlanner.selectedTemplateId
+        : (normalizedTemplates[0]?.id || 'default');
+
+    return {
+        selectedTemplateId,
+        templates: normalizedTemplates,
+        activeSchedule: activeSchedule.map((slot, slotIndex) => normalizePlannerSlot(slot, slotIndex)),
+        importantDates: importantDates.map((entry, entryIndex) => ({
+            id: typeof entry?.id === 'string' && entry.id.trim() ? entry.id : `date-${Date.now()}-${entryIndex}`,
+            title: typeof entry?.title === 'string' ? entry.title : '',
+            date: typeof entry?.date === 'string' ? entry.date : ''
+        })),
+        classTags: (Array.isArray(safePlanner.classTags) ? safePlanner.classTags : []).map((tag, tagIndex) => ({
+            id: typeof tag?.id === 'string' && tag.id.trim() ? tag.id : `tag-${Date.now()}-${tagIndex}`,
+            name: typeof tag?.name === 'string' ? tag.name : '',
+            color: typeof tag?.color === 'string' ? tag.color : '#468dbd',
+            linkedCourseId: typeof tag?.linkedCourseId === 'string' ? tag.linkedCourseId : null
+        }))
+    };
+}
+
+function findClassTagByName(className) {
+    const normalizedName = String(className || '').trim().toLowerCase();
+    if (!normalizedName) {
+        return null;
+    }
+
+    const normalizedClassParts = normalizedName
+        .split(/[^a-z0-9]+/)
+        .filter(Boolean);
+
+    let bestMatch = null;
+    let bestScore = 0;
+
+    planner.classTags.forEach(tag => {
+        const normalizedTagName = String(tag.name || '').trim().toLowerCase();
+        if (!normalizedTagName) {
+            return;
+        }
+
+        // Exact match wins immediately.
+        if (normalizedTagName === normalizedName) {
+            bestMatch = tag;
+            bestScore = Number.MAX_SAFE_INTEGER;
+            return;
+        }
+
+        const containsMatch = normalizedName.includes(normalizedTagName) || normalizedTagName.includes(normalizedName);
+        if (!containsMatch) {
+            return;
+        }
+
+        const normalizedTagParts = normalizedTagName
+            .split(/[^a-z0-9]+/)
+            .filter(Boolean);
+        const overlapCount = normalizedTagParts.filter(part => normalizedClassParts.includes(part)).length;
+
+        // Prefer tags with more overlapping terms, then longer names for specificity.
+        const matchScore = overlapCount * 100 + normalizedTagName.length;
+        if (matchScore > bestScore) {
+            bestScore = matchScore;
+            bestMatch = tag;
+        }
+    });
+
+    return bestMatch;
+}
+
+function getLinkedCourseIdForClassName(className) {
+    const matchedTag = findClassTagByName(className);
+    if (!matchedTag || !matchedTag.linkedCourseId) {
+        return '';
+    }
+    return matchedTag.linkedCourseId;
+}
+
+function buildPlannerCellAttributes(value) {
+    const tag = findClassTagByName(value);
+    if (!tag) {
+        return 'class="planner-cell-input"';
+    }
+
+    const linkedCourseIdAttr = tag.linkedCourseId
+        ? ` data-linked-course-id="${escapeHtml(tag.linkedCourseId)}"`
+        : '';
+    const linkedClass = tag.linkedCourseId ? ' planner-cell-input-linked' : '';
+
+    return `style="--class-color:${escapeHtml(tag.color)};" class="planner-cell-input planner-cell-input-tagged${linkedClass}"${linkedCourseIdAttr}`;
+}
+
+function normalizePlannerSlot(slot, slotIndex) {
+    const safeSlot = slot && typeof slot === 'object' ? slot : {};
+    return {
+        time: typeof safeSlot.time === 'string' ? safeSlot.time : `Period ${slotIndex + 1}`,
+        mon: typeof safeSlot.mon === 'string' ? safeSlot.mon : '',
+        tue: typeof safeSlot.tue === 'string' ? safeSlot.tue : '',
+        wed: typeof safeSlot.wed === 'string' ? safeSlot.wed : '',
+        thu: typeof safeSlot.thu === 'string' ? safeSlot.thu : '',
+        fri: typeof safeSlot.fri === 'string' ? safeSlot.fri : ''
+    };
+}
+
+// Renders planner controls, timetable editor, and important dates list.
+function renderPlanner() {
+    if (!timetablePresetSelect || !timetableEditor || !importantDatesList) {
+        return;
+    }
+
+    const selectedTemplateExists = planner.templates.some(template => template.id === planner.selectedTemplateId);
+    if (!selectedTemplateExists && planner.templates[0]) {
+        planner.selectedTemplateId = planner.templates[0].id;
+    }
+
+    timetablePresetSelect.innerHTML = planner.templates
+        .map(template => `<option value="${escapeHtml(template.id)}">${escapeHtml(template.name)}</option>`)
+        .join('') + `<option value="${RESET_PLANNER_OPTION_VALUE}">Reset Planner to Defaults...</option>`;
+
+    if (planner.selectedTemplateId) {
+        timetablePresetSelect.value = planner.selectedTemplateId;
+    }
+
+    const rows = planner.activeSchedule.map((slot, rowIndex) => `
+        <tr>
+            <td><input class="planner-cell-input" data-row-index="${rowIndex}" data-field="time" value="${escapeHtml(slot.time)}"></td>
+            <td><textarea ${buildPlannerCellAttributes(slot.mon)} data-row-index="${rowIndex}" data-field="mon" title="${getLinkedCourseIdForClassName(slot.mon) ? 'Click to open linked class, Shift+click to edit' : 'Class name'}">${escapeHtml(slot.mon)}</textarea></td>
+            <td><textarea ${buildPlannerCellAttributes(slot.tue)} data-row-index="${rowIndex}" data-field="tue" title="${getLinkedCourseIdForClassName(slot.tue) ? 'Click to open linked class, Shift+click to edit' : 'Class name'}">${escapeHtml(slot.tue)}</textarea></td>
+            <td><textarea ${buildPlannerCellAttributes(slot.wed)} data-row-index="${rowIndex}" data-field="wed" title="${getLinkedCourseIdForClassName(slot.wed) ? 'Click to open linked class, Shift+click to edit' : 'Class name'}">${escapeHtml(slot.wed)}</textarea></td>
+            <td><textarea ${buildPlannerCellAttributes(slot.thu)} data-row-index="${rowIndex}" data-field="thu" title="${getLinkedCourseIdForClassName(slot.thu) ? 'Click to open linked class, Shift+click to edit' : 'Class name'}">${escapeHtml(slot.thu)}</textarea></td>
+            <td><textarea ${buildPlannerCellAttributes(slot.fri)} data-row-index="${rowIndex}" data-field="fri" title="${getLinkedCourseIdForClassName(slot.fri) ? 'Click to open linked class, Shift+click to edit' : 'Class name'}">${escapeHtml(slot.fri)}</textarea></td>
+        </tr>
+    `).join('');
+
+    if (classTagNamesDatalist) {
+        classTagNamesDatalist.innerHTML = planner.classTags
+            .map(tag => `<option value="${escapeHtml(tag.name)}"></option>`)
+            .join('');
+    }
+
+    if (classTagCourseSelect) {
+        classTagCourseSelect.innerHTML = [
+            '<option value="">Link to course (optional)</option>',
+            ...courses.map(course => `<option value="${escapeHtml(course.id)}">${escapeHtml(course.name)}</option>`)
+        ].join('');
+    }
+
+    if (classTagsList) {
+        classTagsList.innerHTML = planner.classTags.length === 0
+            ? '<p class="empty-state">No class tags yet.</p>'
+            : planner.classTags.map(tag => {
+                const linkedCourse = courses.find(course => course.id === tag.linkedCourseId);
+                return `
+                    <div class="class-tag-item">
+                        <span class="class-tag-chip" style="background:${escapeHtml(tag.color)}22; border-color:${escapeHtml(tag.color)}55; color:${escapeHtml(tag.color)}">${escapeHtml(tag.name)}</span>
+                        <div class="class-tag-item-actions">
+                            ${linkedCourse ? `<button class="btn btn-secondary" type="button" data-open-course-id="${escapeHtml(linkedCourse.id)}">Open ${escapeHtml(linkedCourse.name)}</button>` : ''}
+                            <button class="btn btn-danger" type="button" data-remove-class-tag-id="${escapeHtml(tag.id)}">Remove</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+    }
+
+    timetableEditor.innerHTML = `
+        <div class="timetable-scroll">
+            <table class="planner-table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Mon</th>
+                        <th>Tue</th>
+                        <th>Wed</th>
+                        <th>Thu</th>
+                        <th>Fri</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                </tbody>
+            </table>
+        </div>
+    `;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const workDueDates = getWorkDueDates();
+    const sortedDates = [...planner.importantDates, ...workDueDates].sort((a, b) => {
+        const dateCompare = (a.date || '').localeCompare(b.date || '');
+        if (dateCompare !== 0) {
+            return dateCompare;
+        }
+        return (a.title || '').localeCompare(b.title || '');
+    });
+
+    importantDatesList.innerHTML = sortedDates.length === 0
+        ? '<p class="empty-state">No important dates yet.</p>'
+        : sortedDates.map(entry => {
+            const parsed = entry.date ? new Date(`${entry.date}T00:00:00`) : null;
+            const isPast = parsed instanceof Date && !Number.isNaN(parsed.valueOf()) && parsed < today;
+            return `
+                <div class="important-date-item ${isPast ? 'important-date-item-complete' : ''}">
+                    <div>
+                        <div class="important-date-title">${escapeHtml(entry.title)}</div>
+                        <div class="important-date-meta">${escapeHtml(entry.date || 'No date')}</div>
+                    </div>
+                    <div class="important-date-actions">
+                        ${entry.sourceType === 'work-due' && entry.courseId ? `<button class="btn btn-secondary" type="button" data-open-due-course-id="${escapeHtml(entry.courseId)}">Open Class</button>` : ''}
+                        ${entry.sourceType !== 'work-due' ? `<button class="btn btn-danger" type="button" data-remove-date-id="${escapeHtml(entry.id)}">Remove</button>` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+}
+
+// Derives due dates from course work so they appear in planner important dates automatically.
+function getWorkDueDates() {
+    const dueDates = [];
+
+    courses.forEach(course => {
+        course.modules.forEach(module => {
+            if (module.dueDate) {
+                dueDates.push({
+                    id: `module-due-${course.id}-${module.id}`,
+                    title: `${module.name} Due (${course.name})`,
+                    date: module.dueDate,
+                    sourceType: 'work-due',
+                    courseId: course.id
+                });
+            }
+
+            const tasks = Array.isArray(module.tasks) ? module.tasks : [];
+            tasks.forEach(task => {
+                if (task.dueDate) {
+                    dueDates.push({
+                        id: `task-due-${course.id}-${module.id}-${task.id}`,
+                        title: `${task.name} Due (${course.name})`,
+                        date: task.dueDate,
+                        sourceType: 'work-due',
+                        courseId: course.id
+                    });
+                }
+            });
+        });
+    });
+
+    return dueDates;
+}
+
+// Applies a preset timetable for the selected learner group.
+async function applyPlannerTemplate(templateId) {
+    if (templateId === RESET_PLANNER_OPTION_VALUE) {
+        await resetPlannerDefaults();
+        return;
+    }
+
+    const selectedTemplate = planner.templates.find(template => template.id === templateId);
+    if (!selectedTemplate) {
+        return;
+    }
+
+    planner.selectedTemplateId = selectedTemplate.id;
+    planner.activeSchedule = selectedTemplate.slots.map(slot => ({ ...slot }));
+    await persistPlanner();
+}
+
+// Adds a new important date entry to the planner.
+async function addImportantDate() {
+    const title = importantDateTitleInput?.value.trim();
+    const date = importantDateInput?.value;
+
+    if (!title || !date) {
+        alert('Please enter both a title and date for the planner item.');
+        return;
+    }
+
+    planner.importantDates.push({
+        id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        title,
+        date
+    });
+
+    if (importantDateTitleInput) {
+        importantDateTitleInput.value = '';
+    }
+    if (importantDateInput) {
+        importantDateInput.value = '';
+    }
+
+    await persistPlanner();
+}
+
+// Removes an important date entry.
+async function removeImportantDate(dateId) {
+    planner.importantDates = planner.importantDates.filter(entry => entry.id !== dateId);
+    await persistPlanner();
+}
+
+// Adds a class tag used for timetable color coding and optional course linking.
+async function addClassTag() {
+    const name = classTagNameInput?.value.trim();
+    const color = classTagColorInput?.value || '#468dbd';
+    const linkedCourseId = classTagCourseSelect?.value || null;
+
+    if (!name) {
+        alert('Please enter a class tag name.');
+        return;
+    }
+
+    const duplicate = planner.classTags.some(tag => tag.name.trim().toLowerCase() === name.toLowerCase());
+    if (duplicate) {
+        alert('A class tag with that name already exists.');
+        return;
+    }
+
+    planner.classTags.push({
+        id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        name,
+        color,
+        linkedCourseId
+    });
+
+    if (classTagNameInput) {
+        classTagNameInput.value = '';
+    }
+    if (classTagCourseSelect) {
+        classTagCourseSelect.value = '';
+    }
+
+    await persistPlanner();
+}
+
+// Removes an existing class tag.
+async function removeClassTag(tagId) {
+    planner.classTags = planner.classTags.filter(tag => tag.id !== tagId);
+    await persistPlanner();
+}
+
+// Opens a linked course from planner tag actions.
+function openCourseFromPlanner(courseId) {
+    showCourses();
+    selectCourse(courseId);
+    renderCourses();
 }
 
 // Renders all course cards and refreshes overall progress.
@@ -612,6 +1232,7 @@ function renderModules(course) {
             <div class="tasks-container">
                 ${tasks.map(task => {
                     const taskWeight = task.weight || 1;
+                    const taskDueDateText = task.dueDate ? ` • Due: ${task.dueDate}` : '';
                     return `
                         <div class="task-item">
                             <input 
@@ -622,7 +1243,7 @@ function renderModules(course) {
                             >
                             <div class="task-content">
                                 <div class="task-name">${escapeHtml(task.name)}</div>
-                                <div class="task-weight">${taskWeight} point${taskWeight !== 1 ? 's' : ''}</div>
+                                <div class="task-weight">${taskWeight} point${taskWeight !== 1 ? 's' : ''}${taskDueDateText}</div>
                             </div>
                             <button class="btn btn-danger task-delete" onclick="deleteTask('${course.id}', '${module.id}', '${task.id}')">Delete</button>
                         </div>
@@ -649,7 +1270,7 @@ function renderModules(course) {
                             ${chevron}
                             <div>
                                 <div class="module-name">${escapeHtml(module.name)}</div>
-                                <div class="module-meta">${showPoints ? `Weight: ${weight} point${weight !== 1 ? 's' : ''} | ` : ''}Tasks: ${tasks.length}</div>
+                                <div class="module-meta">${showPoints ? `Weight: ${weight} point${weight !== 1 ? 's' : ''} | ` : ''}Tasks: ${tasks.length}${module.dueDate ? ` | Due: ${module.dueDate}` : ''}</div>
                             </div>
                         </div>
                     </div>
@@ -678,19 +1299,23 @@ function closeAddModuleModal() {
     addModuleModal.classList.add('hidden');
     moduleNameInput.value = '';
     moduleWeightInput.value = '1';
+    if (moduleDueDateInput) {
+        moduleDueDateInput.value = '';
+    }
 }
 
 // Creates a module for the currently selected course.
 async function createModule() {
     const moduleName = moduleNameInput.value.trim();
     const weight = parseInt(moduleWeightInput.value) || 1;
+    const dueDate = moduleDueDateInput?.value || null;
     
     if (!moduleName) {
         alert('Please enter a module name');
         return;
     }
 
-    const newModule = await window.electronAPI.addModule(currentCourseId, moduleName, weight);
+    const newModule = await window.electronAPI.addModule(currentCourseId, moduleName, weight, dueDate);
     if (newModule) {
         const course = courses.find(c => c.id === currentCourseId);
         if (course) {
@@ -748,10 +1373,13 @@ function showWelcome() {
     welcomeSection.classList.remove('hidden');
     courseSection.classList.add('hidden');
     overallProgressSection.classList.add('hidden');
+    plannerSection.classList.add('hidden');
+    moduleSection.classList.add('hidden');
     
     // Update active button
     welcomeNavBtn.classList.add('nav-btn-active');
     coursesNavBtn.classList.remove('nav-btn-active');
+    plannerNavBtn.classList.remove('nav-btn-active');
 }
 
 // Shows course/progress screens and updates nav button styles.
@@ -759,10 +1387,27 @@ function showCourses() {
     welcomeSection.classList.add('hidden');
     courseSection.classList.remove('hidden');
     overallProgressSection.classList.remove('hidden');
+    plannerSection.classList.add('hidden');
     
     // Update active button
     welcomeNavBtn.classList.remove('nav-btn-active');
     coursesNavBtn.classList.add('nav-btn-active');
+    plannerNavBtn.classList.remove('nav-btn-active');
+}
+
+// Shows planner view and updates navigation state.
+function showPlanner() {
+    welcomeSection.classList.add('hidden');
+    courseSection.classList.add('hidden');
+    overallProgressSection.classList.add('hidden');
+    moduleSection.classList.add('hidden');
+    plannerSection.classList.remove('hidden');
+
+    welcomeNavBtn.classList.remove('nav-btn-active');
+    coursesNavBtn.classList.remove('nav-btn-active');
+    plannerNavBtn.classList.add('nav-btn-active');
+
+    renderPlanner();
 }
 
 // PROGRESS BAR
@@ -894,6 +1539,9 @@ function closeAddTaskModal() {
     addTaskModal.classList.add('hidden');
     taskNameInput.value = '';
     taskWeightInput.value = '1';
+    if (taskDueDateInput) {
+        taskDueDateInput.value = '';
+    }
     currentModuleId = null;
 }
 
@@ -901,13 +1549,14 @@ function closeAddTaskModal() {
 async function createTask() {
     const taskName = taskNameInput.value.trim();
     const weight = parseInt(taskWeightInput.value) || 1;
+    const dueDate = taskDueDateInput?.value || null;
 
     if (!taskName) {
         alert('Please enter a task name');
         return;
     }
 
-    const newTask = await window.electronAPI.addTask(currentCourseId, currentModuleId, taskName, weight);
+    const newTask = await window.electronAPI.addTask(currentCourseId, currentModuleId, taskName, weight, dueDate);
     if (newTask) {
         const course = courses.find(c => c.id === currentCourseId);
         if (course) {

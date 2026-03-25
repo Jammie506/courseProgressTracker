@@ -29,12 +29,267 @@ function toNumberOrDefault(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function normalizeText(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function createDefaultTimetableTemplates() {
+  const baseTimes = ['09:00-10:00', '10:00-11:00', '11:00-11:15', '11:15-12:15', '12:15-13:15', '13:15-13:45', '13:45-14:45', '14:45-15:35'];
+
+  const buildSlots = (subjectsByPeriod) => baseTimes.map((time, index) => ({
+    time,
+    mon: subjectsByPeriod[index]?.mon || '',
+    tue: subjectsByPeriod[index]?.tue || '',
+    wed: subjectsByPeriod[index]?.wed || '',
+    thu: subjectsByPeriod[index]?.thu || '',
+    fri: subjectsByPeriod[index]?.fri || ''
+  }));
+
+  return [
+    {
+      id: 'default',
+      name: 'Default Timetable',
+      slots: buildSlots([
+        { mon: 'Resource',         tue: 'Resource',         wed: 'IT Skills - G5',  thu: 'Resource',          fri: 'IT Skills - G2' },
+        { mon: 'IT Skills - G4',   tue: 'Student Council',  wed: 'IT Skills - G1',  thu: 'IT Skills - G4',    fri: 'IT Skills - G3' },
+        { mon: 'Break',            tue: 'Break',            wed: 'Break',           thu: 'Break',             fri: 'Break' },
+        { mon: 'Resource',         tue: 'Student Council',  wed: 'IT Skills - G2',  thu: 'IT Skills - G3',    fri: 'Digital Literacy' },
+        { mon: 'IT Skills - G5',   tue: 'IT Skills - G1',   wed: 'Resource',        thu: 'IT Skills - G2',    fri: 'Resource' },
+        { mon: 'Lunch',            tue: 'Lunch',            wed: 'Lunch',           thu: 'Lunch',             fri: '' },
+        { mon: 'IT Skills - G3',   tue: 'Resource',         wed: 'IT Skills - G1',  thu: 'Digital Literacy',  fri: '' },
+        { mon: 'IT Skills - G4',   tue: 'IT Skills - G5',   wed: 'Resource',        thu: 'Digital Literacy',  fri: '' }
+      ])
+    },
+    {
+      id: 'group-1',
+      name: 'Group 1',
+      slots: buildSlots([
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' }
+      ])
+    },
+    {
+      id: 'group-2',
+      name: 'Group 2',
+      slots: buildSlots([
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' }
+      ])
+    },
+    {
+      id: 'group-3',
+      name: 'Group 3',
+      slots: buildSlots([
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' }
+      ])
+    },
+    {
+      id: 'group-4',
+      name: 'Group 4',
+      slots: buildSlots([
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' }
+      ])
+    },
+    {
+      id: 'group-5',
+      name: 'Group 5',
+      slots: buildSlots([
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' },
+        { mon: '',                 tue: '',                 wed: '',                thu: '',                  fri: '' }
+      ])
+    }
+  ];
+}
+
+function clonePlannerSlots(slots) {
+  return slots.map(slot => ({
+    time: slot.time,
+    mon: slot.mon,
+    tue: slot.tue,
+    wed: slot.wed,
+    thu: slot.thu,
+    fri: slot.fri
+  }));
+}
+
+function createDefaultPlanner() {
+  const templates = createDefaultTimetableTemplates();
+  return {
+    selectedTemplateId: templates[0].id,
+    templates,
+    activeSchedule: clonePlannerSlots(templates[0].slots),
+    importantDates: [],
+    classTags: [
+      { id: 'tag-it-skills', name: 'IT Skills', color: '#468dbd', linkedCourseName: 'IT Skills', linkedCourseId: null },
+      { id: 'tag-maths', name: 'Maths', color: '#ff996f', linkedCourseName: 'Maths', linkedCourseId: null },
+      { id: 'tag-english', name: 'English', color: '#6bbf85', linkedCourseName: 'English', linkedCourseId: null },
+      { id: 'tag-science', name: 'Science', color: '#7d89d8', linkedCourseName: 'Science', linkedCourseId: null },
+      { id: 'tag-history', name: 'History', color: '#d08b55', linkedCourseName: 'History', linkedCourseId: null },
+      { id: 'tag-art', name: 'Art', color: '#cf78a6', linkedCourseName: 'Art', linkedCourseId: null }
+    ]
+  };
+}
+
 function createDefaultStore() {
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     lastUpdatedAt: nowIso(),
     courses: [],
-    progressHistory: []
+    progressHistory: [],
+    planner: createDefaultPlanner()
+  };
+}
+
+function normalizePlannerSlot(slot, index) {
+  const safeSlot = slot && typeof slot === 'object' ? slot : {};
+
+  return {
+    time: typeof safeSlot.time === 'string' ? safeSlot.time : `Period ${index + 1}`,
+    mon: typeof safeSlot.mon === 'string' ? safeSlot.mon : '',
+    tue: typeof safeSlot.tue === 'string' ? safeSlot.tue : '',
+    wed: typeof safeSlot.wed === 'string' ? safeSlot.wed : '',
+    thu: typeof safeSlot.thu === 'string' ? safeSlot.thu : '',
+    fri: typeof safeSlot.fri === 'string' ? safeSlot.fri : ''
+  };
+}
+
+function normalizePlannerTemplate(template, index) {
+  const safeTemplate = template && typeof template === 'object' ? template : {};
+  const slots = Array.isArray(safeTemplate.slots) ? safeTemplate.slots : [];
+
+  return {
+    id: typeof safeTemplate.id === 'string' && safeTemplate.id.trim() ? safeTemplate.id : `template-${index + 1}`,
+    name: typeof safeTemplate.name === 'string' && safeTemplate.name.trim() ? safeTemplate.name : `Group ${index + 1}`,
+    slots: slots.map((slot, slotIndex) => normalizePlannerSlot(slot, slotIndex))
+  };
+}
+
+function normalizeImportantDate(entry, index) {
+  const safeEntry = entry && typeof entry === 'object' ? entry : {};
+
+  return {
+    id: typeof safeEntry.id === 'string' && safeEntry.id.trim() ? safeEntry.id : `date-${index + 1}-${createId()}`,
+    title: typeof safeEntry.title === 'string' && safeEntry.title.trim() ? safeEntry.title : 'Important Date',
+    date: typeof safeEntry.date === 'string' ? safeEntry.date : ''
+  };
+}
+
+function normalizeClassTag(tag, index) {
+  const safeTag = tag && typeof tag === 'object' ? tag : {};
+  return {
+    id: typeof safeTag.id === 'string' && safeTag.id.trim() ? safeTag.id : `class-tag-${index + 1}-${createId()}`,
+    name: typeof safeTag.name === 'string' && safeTag.name.trim() ? safeTag.name : `Class ${index + 1}`,
+    color: typeof safeTag.color === 'string' && safeTag.color.trim() ? safeTag.color : '#468dbd',
+    linkedCourseName: typeof safeTag.linkedCourseName === 'string' && safeTag.linkedCourseName.trim()
+      ? safeTag.linkedCourseName
+      : (typeof safeTag.name === 'string' ? safeTag.name : ''),
+    linkedCourseId: typeof safeTag.linkedCourseId === 'string' && safeTag.linkedCourseId.trim() ? safeTag.linkedCourseId : null
+  };
+}
+
+function resolveTagCourseLink(tag, courses) {
+  if (!Array.isArray(courses) || courses.length === 0) {
+    return null;
+  }
+
+  // Keep existing explicit link if it is still valid.
+  if (tag.linkedCourseId && courses.some(course => course.id === tag.linkedCourseId)) {
+    return tag.linkedCourseId;
+  }
+
+  const lookupText = normalizeText(tag.linkedCourseName || tag.name);
+  if (!lookupText) {
+    return null;
+  }
+
+  const exactMatch = courses.find(course => normalizeText(course.name) === lookupText);
+  if (exactMatch) {
+    return exactMatch.id;
+  }
+
+  const containsMatch = courses.find(course => normalizeText(course.name).includes(lookupText));
+  if (containsMatch) {
+    return containsMatch.id;
+  }
+
+  return null;
+}
+
+function applyPlannerTagAutoLinks(planner, courses) {
+  if (!planner || !Array.isArray(planner.classTags)) {
+    return planner;
+  }
+
+  planner.classTags = planner.classTags.map(tag => ({
+    ...tag,
+    linkedCourseId: resolveTagCourseLink(tag, courses)
+  }));
+
+  return planner;
+}
+
+function normalizePlanner(planner) {
+  const defaultPlanner = createDefaultPlanner();
+  const safePlanner = planner && typeof planner === 'object' ? planner : {};
+
+  const normalizedTemplates = Array.isArray(safePlanner.templates) && safePlanner.templates.length > 0
+    ? safePlanner.templates.map((template, index) => normalizePlannerTemplate(template, index))
+    : defaultPlanner.templates;
+
+  const selectedTemplateId = typeof safePlanner.selectedTemplateId === 'string' && safePlanner.selectedTemplateId.trim()
+    ? safePlanner.selectedTemplateId
+    : normalizedTemplates[0].id;
+
+  const normalizedSchedule = Array.isArray(safePlanner.activeSchedule) && safePlanner.activeSchedule.length > 0
+    ? safePlanner.activeSchedule.map((slot, index) => normalizePlannerSlot(slot, index))
+    : clonePlannerSlots(normalizedTemplates.find(template => template.id === selectedTemplateId)?.slots || normalizedTemplates[0].slots);
+
+  const importantDates = Array.isArray(safePlanner.importantDates)
+    ? safePlanner.importantDates.map((entry, index) => normalizeImportantDate(entry, index))
+    : [];
+
+  const classTags = Array.isArray(safePlanner.classTags) && safePlanner.classTags.length > 0
+    ? safePlanner.classTags.map((tag, index) => normalizeClassTag(tag, index))
+    : defaultPlanner.classTags;
+
+  return {
+    selectedTemplateId,
+    templates: normalizedTemplates,
+    activeSchedule: normalizedSchedule,
+    importantDates,
+    classTags
   };
 }
 
@@ -42,12 +297,14 @@ function normalizeTask(task, index) {
   const safeTask = task && typeof task === 'object' ? task : {};
   const createdAt = typeof safeTask.createdAt === 'string' ? safeTask.createdAt : nowIso();
   const updatedAt = typeof safeTask.updatedAt === 'string' ? safeTask.updatedAt : createdAt;
+  const dueDate = typeof safeTask.dueDate === 'string' && safeTask.dueDate.trim() ? safeTask.dueDate : null;
 
   return {
     id: typeof safeTask.id === 'string' && safeTask.id.trim() ? safeTask.id : `task-${index + 1}-${createId()}`,
     name: typeof safeTask.name === 'string' && safeTask.name.trim() ? safeTask.name : 'Untitled Task',
     completed: Boolean(safeTask.completed),
     weight: toNumberOrDefault(safeTask.weight, 1),
+    dueDate,
     createdAt,
     updatedAt
   };
@@ -58,12 +315,14 @@ function normalizeModule(module, index) {
   const tasks = Array.isArray(safeModule.tasks) ? safeModule.tasks : [];
   const createdAt = typeof safeModule.createdAt === 'string' ? safeModule.createdAt : nowIso();
   const updatedAt = typeof safeModule.updatedAt === 'string' ? safeModule.updatedAt : createdAt;
+  const dueDate = typeof safeModule.dueDate === 'string' && safeModule.dueDate.trim() ? safeModule.dueDate : null;
 
   return {
     id: typeof safeModule.id === 'string' && safeModule.id.trim() ? safeModule.id : `module-${index + 1}-${createId()}`,
     name: typeof safeModule.name === 'string' && safeModule.name.trim() ? safeModule.name : 'Untitled Module',
     completed: Boolean(safeModule.completed),
     weight: toNumberOrDefault(safeModule.weight, 1),
+    dueDate,
     tasks: tasks.map((task, taskIndex) => normalizeTask(task, taskIndex)),
     createdAt,
     updatedAt
@@ -118,11 +377,16 @@ function migrateAndNormalizeStore(payload) {
   const courses = Array.isArray(asObject.courses) ? asObject.courses : [];
   const progressHistory = Array.isArray(asObject.progressHistory) ? asObject.progressHistory : [];
 
+  const normalizedCourses = courses.map((course, courseIndex) => normalizeCourse(course, courseIndex));
+  const normalizedPlanner = normalizePlanner(asObject.planner);
+  applyPlannerTagAutoLinks(normalizedPlanner, normalizedCourses);
+
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     lastUpdatedAt: typeof asObject.lastUpdatedAt === 'string' ? asObject.lastUpdatedAt : nowIso(),
-    courses: courses.map((course, courseIndex) => normalizeCourse(course, courseIndex)),
-    progressHistory: progressHistory.map((event, eventIndex) => normalizeProgressEvent(event, eventIndex))
+    courses: normalizedCourses,
+    progressHistory: progressHistory.map((event, eventIndex) => normalizeProgressEvent(event, eventIndex)),
+    planner: normalizedPlanner
   };
 }
 
@@ -253,10 +517,10 @@ if (!fs.existsSync(dataFile)) {
 function createWindow() {
   // Create the single main application window.
   mainWindow = new BrowserWindow({
-    width: 1000,
-    height: 750,
-    minWidth: 800,
-    minHeight: 600,
+    width: 1220,
+    height: 860,
+    minWidth: 920,
+    minHeight: 680,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -314,6 +578,45 @@ ipcMain.handle('load-courses', async () => {
   }
 });
 
+ipcMain.handle('load-planner', async () => {
+  try {
+    const store = readStoreFromDisk();
+    if (!store.planner) {
+      store.planner = createDefaultPlanner();
+      saveStoreToDisk(store);
+    }
+    return store.planner;
+  } catch (error) {
+    console.error('Error loading planner:', error);
+    return createDefaultPlanner();
+  }
+});
+
+ipcMain.handle('save-planner', async (event, planner) => {
+  try {
+    const store = readStoreFromDisk();
+    store.planner = normalizePlanner(planner);
+    const savedStore = saveStoreToDisk(store);
+    return { success: true, planner: savedStore.planner };
+  } catch (error) {
+    console.error('Error saving planner:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('reset-planner-defaults', async () => {
+  try {
+    const store = readStoreFromDisk();
+    store.planner = createDefaultPlanner();
+    applyPlannerTagAutoLinks(store.planner, store.courses);
+    const savedStore = saveStoreToDisk(store);
+    return { success: true, planner: savedStore.planner };
+  } catch (error) {
+    console.error('Error resetting planner defaults:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('save-courses', async (event, courses) => {
   // Overwrite the full course list from renderer state.
   try {
@@ -365,7 +668,7 @@ ipcMain.handle('delete-course', async (event, courseId) => {
   }
 });
 
-ipcMain.handle('add-module', async (event, courseId, moduleName, weight = 1) => {
+ipcMain.handle('add-module', async (event, courseId, moduleName, weight = 1, dueDate = null) => {
   // Add a module to a specific course.
   try {
     const store = readStoreFromDisk();
@@ -377,6 +680,7 @@ ipcMain.handle('add-module', async (event, courseId, moduleName, weight = 1) => 
         name: moduleName,
         completed: false,
         weight: weight,
+        dueDate: typeof dueDate === 'string' && dueDate.trim() ? dueDate : null,
         tasks: [],
         createdAt: timestamp,
         updatedAt: timestamp
@@ -459,7 +763,7 @@ ipcMain.handle('delete-module', async (event, courseId, moduleId) => {
   }
 });
 
-ipcMain.handle('add-task', async (event, courseId, moduleId, taskName, weight = 1) => {
+ipcMain.handle('add-task', async (event, courseId, moduleId, taskName, weight = 1, dueDate = null) => {
   // Add a task under the specified module.
   try {
     const store = readStoreFromDisk();
@@ -474,6 +778,7 @@ ipcMain.handle('add-task', async (event, courseId, moduleId, taskName, weight = 
           name: taskName,
           completed: false,
           weight: weight,
+          dueDate: typeof dueDate === 'string' && dueDate.trim() ? dueDate : null,
           createdAt: timestamp,
           updatedAt: timestamp
         };
