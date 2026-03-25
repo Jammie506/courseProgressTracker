@@ -515,6 +515,10 @@ if (!fs.existsSync(dataFile)) {
 }
 
 function createWindow() {
+  const appIconPath = process.platform === 'win32'
+    ? path.join(__dirname, '..', 'images', 'sortedLogo.ico')
+    : path.join(__dirname, '..', 'images', 'courseProgressTrack.png');
+
   // Create the single main application window.
   mainWindow = new BrowserWindow({
     width: 1220,
@@ -527,7 +531,7 @@ function createWindow() {
       enableRemoteModule: false,
       nodeIntegration: false
     },
-    icon: path.join(__dirname, '..', 'images', 'courseProgressTrack.png')
+    icon: appIconPath
   });
 
   const startUrl = isDev

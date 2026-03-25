@@ -1,5 +1,5 @@
 {
-  "name": "learner-progress-tracker",
+  "name": "sorted",
   "version": "1.0.1",
   "description": "Track learner progress through course modules",
   "author": "Jamie McCarthy",
@@ -20,7 +20,7 @@
   },
   "build": {
     "appId": "com.learnerprogresstracker.app",
-    "productName": "Course Progress Tracker",
+    "productName": "Sorted",
     "directories": {
       "buildResources": "assets"
     },
@@ -34,7 +34,8 @@
       "data/**/*"
     ],
     "win": {
-      "icon": "assets/images/courseProgressTrack.png",
+      "icon": "assets/images/sortedLogo.ico",
+      "executableName": "Sorted",
       "target": [
         {
           "target": "nsis",
@@ -55,7 +56,11 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Learner Progress Tracker"
+      "shortcutName": "Sorted",
+      "artifactName": "Sorted-Setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "Sorted.${ext}"
     }
   }
 }
