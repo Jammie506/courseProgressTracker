@@ -31,6 +31,7 @@ const moduleNameInput = document.getElementById('moduleNameInput');
 const createModuleBtn = document.getElementById('createModuleBtn');
 const cancelModuleBtn = document.getElementById('cancelModuleBtn');
 const moduleList = document.getElementById('moduleList');
+const addModuleModalTitle = addModuleModal?.querySelector('h3');
 const backBtn = document.getElementById('backBtn');
 const currentCourseName = document.getElementById('currentCourseName');
 const progressFill = document.getElementById('progressFill');
@@ -64,6 +65,8 @@ const cancelTaskBtn = document.getElementById('cancelTaskBtn');
 let courses = [];
 let currentCourseId = null;
 let currentModuleId = null;
+let editingModuleContext = null;
+let editingTaskContext = null;
 let expandedModules = new Set(); // Track which modules have expanded tasks
 let planner = {
     selectedTemplateId: '',
@@ -1196,6 +1199,27 @@ function handleCourseCardClick(event, courseId) {
     renderCourses();
 }
 
+function handleModuleItemClick(event, moduleId) {
+    const clickedElement = event.target;
+    if (clickedElement instanceof HTMLElement && clickedElement.closest('button, a, input, select, textarea, label')) {
+        return;
+    }
+
+    toggleModuleExpand(moduleId);
+}
+
+function onEditModuleClick(event, courseId, moduleId) {
+    event.preventDefault();
+    event.stopPropagation();
+    void editModule(courseId, moduleId);
+}
+
+function onEditTaskClick(event, courseId, moduleId, taskId) {
+    event.preventDefault();
+    event.stopPropagation();
+    void editTask(courseId, moduleId, taskId);
+}
+
 // MODULE FUNCTIONS
 // Renders module cards, their progress, and nested tasks.
 function renderModules(course) {
@@ -1245,6 +1269,7 @@ function renderModules(course) {
                                 <div class="task-name">${escapeHtml(task.name)}</div>
                                 <div class="task-weight">${taskWeight} point${taskWeight !== 1 ? 's' : ''}${taskDueDateText}</div>
                             </div>
+                            <button class="btn btn-secondary task-edit-due" type="button" onclick="openEditTaskModal('${course.id}', '${module.id}', '${task.id}'); event.stopPropagation();">Edit</button>
                             <button class="btn btn-danger task-delete" onclick="deleteTask('${course.id}', '${module.id}', '${task.id}')">Delete</button>
                         </div>
                     `;
@@ -1257,7 +1282,7 @@ function renderModules(course) {
 
         return `
             <div class="module-wrapper">
-                <div class="module-item" onclick="toggleModuleExpand('${module.id}')" style="cursor: ${tasks.length > 0 ? 'pointer' : 'default'};">
+                <div class="module-item" onclick="handleModuleItemClick(event, '${module.id}')" style="cursor: ${tasks.length > 0 ? 'pointer' : 'default'};">
                     <input 
                         type="checkbox" 
                         class="module-checkbox"
@@ -1276,6 +1301,7 @@ function renderModules(course) {
                     </div>
                     <div class="module-actions">
                         <button class="btn btn-primary add-task-btn" onclick="openAddTaskModal('${module.id}', '${escapeHtml(module.name).replace(/'/g, "\\'")}'); event.stopPropagation();">+ Task</button>
+                        <button class="btn btn-secondary" type="button" onclick="openEditModuleModal('${course.id}', '${module.id}'); event.stopPropagation();">Edit</button>
                         <button class="btn btn-danger" onclick="deleteModule('${course.id}', '${module.id}'); event.stopPropagation();">Delete</button>
                     </div>
                 </div>
@@ -1290,6 +1316,33 @@ function renderModules(course) {
 
 // Opens the add-module modal.
 function openAddModuleModal() {
+    editingModuleContext = null;
+    if (addModuleModalTitle) {
+        addModuleModalTitle.textContent = 'Add New Activity';
+    }
+    createModuleBtn.textContent = 'Add Activity';
+    addModuleModal.classList.remove('hidden');
+    moduleNameInput.focus();
+}
+
+function openEditModuleModal(courseId, moduleId) {
+    const course = courses.find(c => c.id === courseId);
+    const module = course?.modules?.find(m => m.id === moduleId);
+    if (!course || !module) {
+        return;
+    }
+
+    editingModuleContext = { courseId, moduleId };
+    if (addModuleModalTitle) {
+        addModuleModalTitle.textContent = 'Edit Activity';
+    }
+    createModuleBtn.textContent = 'Save Changes';
+    moduleNameInput.value = module.name || '';
+    moduleWeightInput.value = String(module.weight || 1);
+    if (moduleDueDateInput) {
+        moduleDueDateInput.value = module.dueDate || '';
+    }
+
     addModuleModal.classList.remove('hidden');
     moduleNameInput.focus();
 }
@@ -1299,6 +1352,11 @@ function closeAddModuleModal() {
     addModuleModal.classList.add('hidden');
     moduleNameInput.value = '';
     moduleWeightInput.value = '1';
+    if (addModuleModalTitle) {
+        addModuleModalTitle.textContent = 'Add New Activity';
+    }
+    createModuleBtn.textContent = 'Add Activity';
+    editingModuleContext = null;
     if (moduleDueDateInput) {
         moduleDueDateInput.value = '';
     }
@@ -1312,6 +1370,32 @@ async function createModule() {
     
     if (!moduleName) {
         alert('Please enter a module name');
+        return;
+    }
+
+    if (editingModuleContext) {
+        const { courseId, moduleId } = editingModuleContext;
+        const result = await window.electronAPI.updateModule(courseId, moduleId, {
+            name: moduleName,
+            weight,
+            dueDate
+        });
+
+        if (result) {
+            const course = courses.find(c => c.id === courseId);
+            const module = course?.modules?.find(m => m.id === moduleId);
+            if (course && module) {
+                module.name = moduleName;
+                module.weight = weight;
+                module.dueDate = dueDate;
+                markDataDirty();
+                renderModules(course);
+                updateOverallProgress();
+            }
+            closeAddModuleModal();
+        } else {
+            alert('Could not update activity. Please try again.');
+        }
         return;
     }
 
@@ -1510,6 +1594,34 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+function normalizeDueDateInput(rawValue) {
+    const value = String(rawValue || '').trim();
+    if (!value) {
+        return null;
+    }
+
+    // Keep storage format consistent with the native date input used elsewhere.
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return undefined;
+    }
+
+    return value;
+}
+
+function normalizeWeightInput(rawValue, currentWeight) {
+    const value = String(rawValue || '').trim();
+    if (!value) {
+        return currentWeight;
+    }
+
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 1) {
+        return undefined;
+    }
+
+    return Math.round(parsed);
+}
+
 // Toggle module expansion
 // Expands/collapses the task list for a module and re-renders view.
 function toggleModuleExpand(moduleId) {
@@ -1528,8 +1640,32 @@ function toggleModuleExpand(moduleId) {
 // TASK FUNCTIONS
 // Opens add-task modal for a specific module.
 function openAddTaskModal(moduleId, moduleName) {
+    editingTaskContext = null;
+    createTaskBtn.textContent = 'Add Task';
     currentModuleId = moduleId;
     taskModuleName.textContent = moduleName;
+    addTaskModal.classList.remove('hidden');
+    taskNameInput.focus();
+}
+
+function openEditTaskModal(courseId, moduleId, taskId) {
+    const course = courses.find(c => c.id === courseId);
+    const module = course?.modules?.find(m => m.id === moduleId);
+    const task = module?.tasks?.find(t => t.id === taskId);
+    if (!course || !module || !task) {
+        return;
+    }
+
+    editingTaskContext = { courseId, moduleId, taskId };
+    currentModuleId = moduleId;
+    taskModuleName.textContent = `${module.name} (Editing)`;
+    createTaskBtn.textContent = 'Save Changes';
+    taskNameInput.value = task.name || '';
+    taskWeightInput.value = String(task.weight || 1);
+    if (taskDueDateInput) {
+        taskDueDateInput.value = task.dueDate || '';
+    }
+
     addTaskModal.classList.remove('hidden');
     taskNameInput.focus();
 }
@@ -1539,6 +1675,8 @@ function closeAddTaskModal() {
     addTaskModal.classList.add('hidden');
     taskNameInput.value = '';
     taskWeightInput.value = '1';
+    createTaskBtn.textContent = 'Add Task';
+    editingTaskContext = null;
     if (taskDueDateInput) {
         taskDueDateInput.value = '';
     }
@@ -1553,6 +1691,33 @@ async function createTask() {
 
     if (!taskName) {
         alert('Please enter a task name');
+        return;
+    }
+
+    if (editingTaskContext) {
+        const { courseId, moduleId, taskId } = editingTaskContext;
+        const result = await window.electronAPI.updateTask(courseId, moduleId, taskId, {
+            name: taskName,
+            weight,
+            dueDate
+        });
+
+        if (result) {
+            const course = courses.find(c => c.id === courseId);
+            const module = course?.modules?.find(m => m.id === moduleId);
+            const task = module?.tasks?.find(t => t.id === taskId);
+            if (course && module && task) {
+                task.name = taskName;
+                task.weight = weight;
+                task.dueDate = dueDate;
+                markDataDirty();
+                renderModules(course);
+                updateOverallProgress();
+            }
+            closeAddTaskModal();
+        } else {
+            alert('Could not update task. Please try again.');
+        }
         return;
     }
 
@@ -1631,3 +1796,4 @@ async function deleteTask(courseId, moduleId, taskId) {
         }
     }
 }
+
