@@ -1,6 +1,6 @@
 {
   "name": "sorted",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "description": "Track learner progress through course modules",
   "author": "Jamie McCarthy",
   "main": "assets/scripts/main.js",
